@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>G4R Amazon Link Tester</title>
+    <meta name="description" content="Garage Reorder by 4DAT Amazon affiliate search-link tester.">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="./index.html" aria-label="G4R home">
+        <img src="./assets/g4r-icon.png" alt="" width="40" height="40">
+        <span>G4R</span>
+      </a>
+      <nav aria-label="Site">
+        <a href="./affiliate-disclosure.html">Disclosure</a>
+        <a href="./privacy.html">Privacy</a>
+        <a href="./terms.html">Terms</a>
+        <a href="./support.html">Support</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Garage Reorder by 4DAT</p>
+          <h1>Amazon paid-link test bench</h1>
+          <p class="lede">Generate compliant Amazon search links for common vehicle reorder categories without showing Amazon prices, images, ratings, or availability.</p>
+        </div>
+        <div class="hero-panel" aria-label="Affiliate link standard">
+          <img src="./assets/g4r-icon.png" alt="" width="86" height="86">
+          <dl>
+            <div>
+              <dt>Associate tag</dt>
+              <dd id="tagValue">4dat-20</dd>
+            </div>
+            <div>
+              <dt>Marketplace</dt>
+              <dd>Amazon.com US</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <section class="notice" aria-label="Affiliate disclosure">
+        <strong>Paid-link disclosure:</strong> As an Amazon Associate, 4DAT earns from qualifying purchases. Confirm fitment before ordering.
+      </section>
+
+      <section class="tester" aria-labelledby="tester-title">
+        <div class="form-panel">
+          <h2 id="tester-title">Build a test link</h2>
+          <form id="linkForm">
+            <div class="field-grid">
+              <label>
+                Year
+                <input id="year" name="year" inputmode="numeric" autocomplete="off" value="2018">
+              </label>
+              <label>
+                Make
+                <input id="make" name="make" autocomplete="organization" value="Toyota">
+              </label>
+              <label>
+                Model
+                <input id="model" name="model" autocomplete="off" value="Camry">
+              </label>
+              <label>
+                Trim
+                <input id="trim" name="trim" autocomplete="off" placeholder="Optional">
+              </label>
+              <label>
+                Engine
+                <input id="engine" name="engine" autocomplete="off" placeholder="Optional">
+              </label>
+              <label>
+                Category
+                <select id="category" name="category">
+                  <option value="windshieldWipers">Windshield wipers</option>
+                  <option value="cabinAirFilter" selected>Cabin air filter</option>
+                  <option value="engineAirFilter">Engine air filter</option>
+                  <option value="keyFobBattery">Key FOB battery</option>
+                </select>
+              </label>
+            </div>
+
+            <label>
+              Generated search query
+              <input id="query" name="query" readonly>
+            </label>
+
+            <label>
+              Generated Amazon URL
+              <textarea id="urlOutput" name="urlOutput" readonly rows="3"></textarea>
+            </label>
+
+            <div class="actions">
+              <button type="button" id="openLink">View on Amazon - paid link</button>
+              <button type="button" class="secondary" id="copyLink">Copy URL</button>
+            </div>
+          </form>
+        </div>
+
+        <aside class="audit-panel" aria-labelledby="audit-title">
+          <div class="panel-header">
+            <h2 id="audit-title">Local click audit</h2>
+            <button type="button" class="icon-button" id="clearLog" aria-label="Clear audit log">Clear</button>
+          </div>
+          <ol id="auditLog"></ol>
+        </aside>
+      </section>
+
+      <section class="categories" aria-labelledby="categories-title">
+        <h2 id="categories-title">MVP categories</h2>
+        <div class="category-grid" id="categoryCards"></div>
+      </section>
+    </main>
+
+    <footer>
+      <p>As an Amazon Associate, 4DAT earns from qualifying purchases.</p>
+      <p>G4R is built by 4DAT LLC. Amazon does not sponsor, endorse, or operate G4R.</p>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
