@@ -1,0 +1,13 @@
+{
+  "name": "g4r-website",
+  "compatibility_date": "2026-06-01",
+  "assets": {
+    "directory": ".",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "routes": [
+    { "pattern": "garage4reorder.com", "custom_domain": true },
+    { "pattern": "www.garage4reorder.com", "custom_domain": true }
+  ]
+}
