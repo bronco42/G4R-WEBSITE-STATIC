@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>G4R — Your Account</title>
+    <meta name="description" content="Sign in to your optional G4R Account to view your synced garage, link devices, or delete your account and its data.">
+    <link rel="stylesheet" href="./styles.css">
+    <style>
+      .viewer-note { border-left: 3px solid currentColor; padding: .6rem 0 .6rem 1rem; opacity: .85; margin: 1rem 0 1.5rem; }
+      .meta { display: flex; flex-wrap: wrap; gap: 1.25rem; margin: 1.5rem 0; font-size: .95rem; }
+      .meta div { min-width: 8rem; }
+      .meta dt { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; opacity: .65; }
+      .meta dd { margin: .15rem 0 0; font-weight: 600; }
+      .vehicle { border: 1px solid rgba(128,128,128,.3); border-radius: 12px; padding: 1.1rem 1.25rem; margin: 1rem 0; }
+      .vehicle h3 { margin: 0 0 .35rem; }
+      .vehicle .sub { opacity: .7; font-size: .9rem; margin: 0 0 .75rem; }
+      table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+      th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid rgba(128,128,128,.18); vertical-align: top; }
+      th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; opacity: .6; }
+      .pill { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+      .pill.overdue { background: rgba(220,38,38,.15); color: #b91c1c; }
+      .pill.soon { background: rgba(217,119,6,.15); color: #b45309; }
+      .pill.good { background: rgba(22,163,74,.15); color: #15803d; }
+      .subhead { margin: 1rem 0 .25rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; opacity: .6; }
+      .error { color: #b91c1c; font-weight: 600; }
+      .actions { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+      .actions button { padding: .5rem .9rem; border-radius: 8px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font-weight: 600; cursor: pointer; }
+      .actions button.danger { color: #b91c1c; border-color: rgba(220,38,38,.5); }
+      .signin-box { border: 1px solid rgba(128,128,128,.3); border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0; }
+      .code-box { font-size: 1.6rem; font-weight: 700; letter-spacing: .2em; padding: .5rem 0; }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="./index.html" aria-label="G4R home">
+        <img src="./assets/g4r-icon.png" alt="" width="40" height="40">
+        <span>G4R</span>
+      </a>
+      <nav aria-label="Site">
+        <a href="./garage-viewer.html">Garage Viewer</a>
+        <a href="./privacy.html">Privacy</a>
+        <a href="./terms.html">Terms</a>
+        <a href="./support.html">Support</a>
+      </nav>
+    </header>
+
+    <main>
+      <h1>Your G4R Account</h1>
+
+      <div id="signedOut">
+        <p class="lede">The optional G4R Account syncs your garage across iPhone and Android and lets you view it here. If you never created one, there's nothing here — your garage lives only on your devices.</p>
+        <p class="viewer-note"><strong>Straight talk on privacy:</strong> data in a G4R Account is stored on 4DAT's server and is readable by it (it is not end-to-end encrypted). You can delete the account — and everything in it — right on this page, any time.</p>
+        <div class="signin-box">
+          <p><strong>Sign in</strong> with the same method you use in the app:</p>
+          <div class="actions">
+            <div id="googleButton"></div>
+            <button id="appleButton" type="button" hidden> Sign in with Apple</button>
+          </div>
+          <p id="configNote" class="sub" hidden>Sign-in isn't switched on for the website yet — check back soon.</p>
+        </div>
+      </div>
+
+      <div id="signedIn" hidden>
+        <p id="status" class="error" role="status"></p>
+        <div class="actions">
+          <button id="refreshBtn" type="button">Refresh</button>
+          <button id="linkBtn" type="button">Link another device</button>
+          <button id="redeemBtn" type="button">Enter link code</button>
+          <button id="printBtn" type="button">Print / Save as PDF</button>
+          <button id="signOutBtn" type="button">Sign out</button>
+          <button id="deleteBtn" type="button" class="danger">Delete account…</button>
+        </div>
+        <p id="linkCodeArea" hidden>On your other device choose “Enter Link Code” and type: <span class="code-box" id="linkCode"></span> (expires in 10 minutes)</p>
+        <dl class="meta" id="meta"></dl>
+        <div id="garage"></div>
+        <p class="viewer-note">This page is read-only. Edit your garage in the G4R app — changes sync here.</p>
+      </div>
+      <p id="signedOutStatus" class="error" role="status"></p>
+    </main>
+
+    <script>
+      // ---- Configuration -------------------------------------------------
+      const API_BASE = 'https://api.garage4reorder.com';
+      // Sign-in buttons appear automatically for configured providers.
+      const GOOGLE_WEB_CLIENT_ID = '194255833350-7aake3sv6ojupvcrdonkg1p7opgamolj.apps.googleusercontent.com';
+      const APPLE_SERVICES_ID = 'com.ai4dat.garage4reorder.web';
+
+      // ---- Session -------------------------------------------------------
+      const tokenKey = 'g4r.account.token';
+      const deviceKey = 'g4r.account.deviceID';
+      const deviceID = localStorage.getItem(deviceKey) || (() => {
+        const id = crypto.randomUUID();
+        localStorage.setItem(deviceKey, id);
+        return id;
+      })();
+
+      const signedOutEl = document.getElementById('signedOut');
+      const signedInEl = document.getElementById('signedIn');
+      const statusEl = document.getElementById('status');
+      const signedOutStatusEl = document.getElementById('signedOutStatus');
+      const metaEl = document.getElementById('meta');
+      const garageEl = document.getElementById('garage');
+
+      function token() { return sessionStorage.getItem(tokenKey); }
+
+      async function api(method, path, body, raw) {
+        const headers = {};
+        if (token()) headers.authorization = 'Bearer ' + token();
+        if (body) headers['content-type'] = 'application/json';
+        const response = await fetch(API_BASE + path, { method, headers, body: body && JSON.stringify(body) });
+        const data = raw ? null : await response.json().catch(() => ({}));
+        if (!response.ok) {
+          if (response.status === 401 && token()) { signOut(); }
+          throw new Error((data && data.error) || ('Request failed (' + response.status + ')'));
+        }
+        return data;
+      }
+
+      async function completeSignIn(provider, idToken) {
+        try {
+          const auth = await api('POST', '/v1/auth', {
+            provider, id_token: idToken,
+            device: { id: deviceID, name: 'Web browser', platform: 'web' },
+          });
+          sessionStorage.setItem(tokenKey, auth.token);
+          show();
+          await refresh();
+          if (auth.account_created) {
+            statusEl.textContent =
+              'This is a brand-new, empty account. If your garage lives on your phone, either sign in there ' +
+              'with this same method, or generate a link code on the phone and use “Enter link code” here.';
+          }
+        } catch (err) {
+          signedOutStatusEl.textContent = err.message;
+        }
+      }
+
+      function signOut() {
+        sessionStorage.removeItem(tokenKey);
+        show();
+      }
+
+      // ---- Sign-in providers --------------------------------------------
+      function setupProviders() {
+        if (!GOOGLE_WEB_CLIENT_ID && !APPLE_SERVICES_ID) {
+          document.getElementById('configNote').hidden = false;
+          return;
+        }
+        if (GOOGLE_WEB_CLIENT_ID) {
+          const s = document.createElement('script');
+          s.src = 'https://accounts.google.com/gsi/client';
+          s.onload = () => {
+            google.accounts.id.initialize({
+              client_id: GOOGLE_WEB_CLIENT_ID,
+              callback: (r) => completeSignIn('google', r.credential),
+            });
+            google.accounts.id.renderButton(document.getElementById('googleButton'), { theme: 'outline', size: 'large' });
+          };
+          document.head.appendChild(s);
+        }
+        if (APPLE_SERVICES_ID) {
+          const s = document.createElement('script');
+          s.src = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
+          s.onload = () => {
+            AppleID.auth.init({
+              clientId: APPLE_SERVICES_ID, scope: '',
+              redirectURI: location.origin + '/account', usePopup: true,
+            });
+            const btn = document.getElementById('appleButton');
+            btn.hidden = false;
+            btn.addEventListener('click', async () => {
+              try {
+                const result = await AppleID.auth.signIn();
+                completeSignIn('apple', result.authorization.id_token);
+              } catch (e) { /* user cancelled */ }
+            });
+          };
+          document.head.appendChild(s);
+        }
+      }
+
+      // ---- Garage projection (display-grade newest-wins over the op-log) --
+      // The apps hold the authoritative merge; this mirrors its outcome for
+      // read-only rendering: tombstone-aware, newest non-delete entry wins.
+      function projectEntries(entries) {
+        const byEntity = new Map();
+        for (const e of entries) {
+          const list = byEntity.get(e.entityID) || [];
+          list.push(e);
+          byEntity.set(e.entityID, list);
+        }
+        const winners = [];
+        for (const [id, list] of byEntity) {
+          const ts = (e) => Date.parse(e.timestamp) || 0;
+          const deletes = list.filter(e => e.operation === 'delete');
+          const edits = list.filter(e => e.operation !== 'delete');
+          const newestDelete = Math.max(0, ...deletes.map(ts));
+          const newestEdit = Math.max(0, ...edits.map(ts));
+          if (deletes.length && newestDelete >= newestEdit) continue;
+          const winner = edits.sort((a, b) => ts(b) - ts(a) || (b.deviceID > a.deviceID ? 1 : -1))[0];
+          if (winner && winner.payload) winners.push(winner);
+        }
+        return winners;
+      }
+
+      async function pullAllEntries() {
+        let since = 0;
+        const all = [];
+        for (;;) {
+          const page = await api('GET', '/v1/changes?app=g4r&since=' + since);
+          all.push(...page.entries);
+          since = page.latest_seq;
+          if (!page.has_more) break;
+        }
+        return all;
+      }
+
+      // ---- Rendering (shared shape with garage-viewer.html) --------------
+      function decodePayload(b64) {
+        if (!b64) return null;
+        try {
+          const bin = atob(b64);
+          return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))));
+        } catch { return null; }
+      }
+      const titleize = (raw) => !raw ? '' : raw.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim();
+      const fmtDate = (s) => s ? new Date(s).toLocaleDateString() : '—';
+      const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+      function nextDue(snap) {
+        if (!snap.lastReplacedDate || !snap.replacementIntervalMonths) return null;
+        const d = new Date(snap.lastReplacedDate);
+        d.setMonth(d.getMonth() + snap.replacementIntervalMonths);
+        return d;
+      }
+      function statusPill(snap) {
+        const due = nextDue(snap);
+        if (!due) return '<span class="pill">No date</span>';
+        const days = Math.round((due - new Date()) / 86400000);
+        if (days < 0) return `<span class="pill overdue">Overdue ${fmtDate(due)}</span>`;
+        if (days <= 30) return `<span class="pill soon">Due ${fmtDate(due)}</span>`;
+        return `<span class="pill good">Due ${fmtDate(due)}</span>`;
+      }
+
+      function renderGarage(winners, me) {
+        const byType = (t) => winners.filter(e => e.entityType === t)
+          .map(e => ({ id: e.entityID, ...(decodePayload(e.payload) || {}) }));
+        const vehicles = byType('Vehicle');
+        const items = byType('ReorderItem');
+        const orders = byType('OrderRecord');
+        const services = byType('ServiceRecord');
+
+        metaEl.innerHTML = [
+          ['Signed in as', esc((me.identities[0] || {}).email || 'your account')],
+          ['Sign-ins', me.identities.map(i => titleize(i.provider)).join(' + ')],
+          ['Devices', me.devices.length],
+          ['Vehicles', vehicles.length],
+          ['Items', items.length],
+          ['History', orders.length + services.length],
+        ].map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+
+        garageEl.innerHTML = vehicles.length ? vehicles.map(v => {
+          const mine = (list) => list.filter(x => (x.vehicleID || '').toLowerCase() === v.id.toLowerCase());
+          const vItems = mine(items), vOrders = mine(orders), vServices = mine(services);
+          const name = esc([v.year, v.make, v.model, v.trim].filter(Boolean).join(' ')) || 'Vehicle';
+          const sub = esc([v.mileage ? v.mileage.toLocaleString() + ' miles' : null, v.licensePlate, v.vin].filter(Boolean).join(' · '));
+
+          const itemRows = vItems.map(i => `<tr>
+              <td>${esc(i.categoryRawValue === 'custom' && i.customCategoryName ? i.customCategoryName : titleize(i.categoryRawValue))}</td>
+              <td>${esc(i.productName) || '—'}</td>
+              <td>${statusPill(i)}</td>
+              <td>${esc(titleize(i.orderStatusRawValue))}</td>
+            </tr>`).join('');
+          const orderRows = vOrders.map(o => `<tr><td>${esc(o.itemTitle || titleize(o.categoryRawValue))}</td><td>${esc(o.productName) || '—'}</td><td>${fmtDate(o.installedAt)}</td></tr>`).join('');
+          const serviceRows = vServices.map(s => `<tr><td>${esc(s.serviceDescription) || '—'}</td><td>${esc(titleize(s.providerTypeRawValue))}${s.providerName ? ' · ' + esc(s.providerName) : ''}</td><td>${fmtDate(s.serviceDate)}</td></tr>`).join('');
+
+          return `<section class="vehicle">
+            <h3>${name}</h3>
+            <p class="sub">${sub || '&nbsp;'}</p>
+            ${vItems.length ? `<table><thead><tr><th>Item</th><th>Product</th><th>Next due</th><th>Order status</th></tr></thead><tbody>${itemRows}</tbody></table>` : '<p class="sub">No replacement items.</p>'}
+            ${vOrders.length ? `<p class="subhead">Order history</p><table><thead><tr><th>Item</th><th>Product</th><th>Installed</th></tr></thead><tbody>${orderRows}</tbody></table>` : ''}
+            ${vServices.length ? `<p class="subhead">Service records</p><table><thead><tr><th>Service</th><th>Provider</th><th>Date</th></tr></thead><tbody>${serviceRows}</tbody></table>` : ''}
+          </section>`;
+        }).join('') : '<p>No vehicles have synced to this account yet. Open the G4R app, sign in to your account in Settings, and tap Sync Now.</p>';
+      }
+
+      // ---- Signed-in actions ---------------------------------------------
+      async function refresh() {
+        statusEl.textContent = '';
+        try {
+          const [me, entries] = await Promise.all([api('GET', '/v1/me'), pullAllEntries()]);
+          renderGarage(projectEntries(entries), me);
+        } catch (err) {
+          statusEl.textContent = err.message;
+        }
+      }
+
+      document.getElementById('refreshBtn').addEventListener('click', refresh);
+      document.getElementById('printBtn').addEventListener('click', () => window.print());
+      document.getElementById('signOutBtn').addEventListener('click', signOut);
+      document.getElementById('linkBtn').addEventListener('click', async () => {
+        try {
+          const issued = await api('POST', '/v1/link/code', {});
+          document.getElementById('linkCode').textContent = issued.code;
+          document.getElementById('linkCodeArea').hidden = false;
+        } catch (err) { statusEl.textContent = err.message; }
+      });
+      document.getElementById('redeemBtn').addEventListener('click', async () => {
+        const code = prompt('Enter the link code shown on the device that already has your garage.\n\nThis sign-in joins that account.');
+        if (!code) return;
+        try {
+          const redeemed = await api('POST', '/v1/link/redeem', { code: code.trim().toUpperCase() });
+          sessionStorage.setItem(tokenKey, redeemed.token);
+          statusEl.textContent = redeemed.merged ? 'Linked — this sign-in now opens that garage.' : 'Already linked.';
+          await refresh();
+        } catch (err) { statusEl.textContent = err.message; }
+      });
+
+      document.getElementById('deleteBtn').addEventListener('click', async () => {
+        const sure = confirm('Delete your G4R Account?\n\nThe copy of your garage stored on 4DAT’s server is erased permanently. The garage on your phones is NOT affected.');
+        if (!sure) return;
+        const really = confirm('This cannot be undone. Delete the account and all server-side data now?');
+        if (!really) return;
+        try {
+          await api('DELETE', '/v1/account');
+          signOut();
+          signedOutStatusEl.textContent = 'Your account and all server-side data were deleted.';
+        } catch (err) { statusEl.textContent = err.message; }
+      });
+
+      function show() {
+        const authed = !!token();
+        signedOutEl.hidden = authed;
+        signedInEl.hidden = !authed;
+        signedOutStatusEl.textContent = '';
+        document.getElementById('linkCodeArea').hidden = true;
+      }
+
+      show();
+      setupProviders();
+      if (token()) refresh();
+    </script>
+  </body>
+</html>

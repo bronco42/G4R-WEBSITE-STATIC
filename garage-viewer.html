@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>G4R — Garage File Viewer</title>
+    <meta name="description" content="Open a G4R garage file (.g4r) right in your browser. Your file never leaves your device — nothing is uploaded.">
+    <link rel="stylesheet" href="./styles.css">
+    <style>
+      .viewer-note { border-left: 3px solid currentColor; padding: .6rem 0 .6rem 1rem; opacity: .85; margin: 1rem 0 1.5rem; }
+      .dropzone { border: 2px dashed rgba(128,128,128,.5); border-radius: 12px; padding: 2.5rem 1.5rem; text-align: center; cursor: pointer; }
+      .dropzone.dragging { border-color: #2f6fed; background: rgba(47,111,237,.06); }
+      .meta { display: flex; flex-wrap: wrap; gap: 1.25rem; margin: 1.5rem 0; font-size: .95rem; }
+      .meta div { min-width: 8rem; }
+      .meta dt { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; opacity: .65; }
+      .meta dd { margin: .15rem 0 0; font-weight: 600; }
+      .vehicle { border: 1px solid rgba(128,128,128,.3); border-radius: 12px; padding: 1.1rem 1.25rem; margin: 1rem 0; }
+      .vehicle h3 { margin: 0 0 .35rem; }
+      .vehicle .sub { opacity: .7; font-size: .9rem; margin: 0 0 .75rem; }
+      table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+      th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid rgba(128,128,128,.18); vertical-align: top; }
+      th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; opacity: .6; }
+      .pill { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+      .pill.overdue { background: rgba(220,38,38,.15); color: #b91c1c; }
+      .pill.soon { background: rgba(217,119,6,.15); color: #b45309; }
+      .pill.good { background: rgba(22,163,74,.15); color: #15803d; }
+      .subhead { margin: 1rem 0 .25rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; opacity: .6; }
+      .error { color: #b91c1c; font-weight: 600; }
+      @media print { .site-header, .dropzone, .no-print { display: none !important; } }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="./index.html" aria-label="G4R home">
+        <img src="./assets/g4r-icon.png" alt="" width="40" height="40">
+        <span>G4R</span>
+      </a>
+      <nav aria-label="Site">
+        <a href="./affiliate-disclosure.html">Disclosure</a>
+        <a href="./privacy.html">Privacy</a>
+        <a href="./terms.html">Terms</a>
+        <a href="./support.html">Support</a>
+      </nav>
+    </header>
+
+    <main>
+      <h1>Garage File Viewer</h1>
+      <p class="lede">Open a <strong>.g4r</strong> garage file exported from G4R (Settings › Transfer / Back Up Garage) to read it on any device — handy for printing a maintenance list or checking your garage on a computer.</p>
+
+      <p class="viewer-note"><strong>Private by design.</strong> Your file is read entirely inside your browser. Nothing is uploaded, stored, or sent anywhere.</p>
+
+      <div class="dropzone" id="dropzone" role="button" tabindex="0">
+        <p><strong>Drop a .g4r file here</strong> or click to choose one</p>
+        <input type="file" id="fileInput" accept=".g4r,.json,application/json" hidden>
+      </div>
+
+      <p id="status" class="error" role="status"></p>
+
+      <div id="results" hidden>
+        <button class="no-print" id="printBtn" type="button">Print / Save as PDF</button>
+        <dl class="meta" id="meta"></dl>
+        <div id="garage"></div>
+      </div>
+    </main>
+
+    <script>
+      const dropzone = document.getElementById('dropzone');
+      const fileInput = document.getElementById('fileInput');
+      const statusEl = document.getElementById('status');
+      const results = document.getElementById('results');
+      const metaEl = document.getElementById('meta');
+      const garageEl = document.getElementById('garage');
+      document.getElementById('printBtn').addEventListener('click', () => window.print());
+
+      dropzone.addEventListener('click', () => fileInput.click());
+      dropzone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+      fileInput.addEventListener('change', (e) => e.target.files[0] && readFile(e.target.files[0]));
+      ['dragenter', 'dragover'].forEach(t => dropzone.addEventListener(t, e => { e.preventDefault(); dropzone.classList.add('dragging'); }));
+      ['dragleave', 'drop'].forEach(t => dropzone.addEventListener(t, e => { e.preventDefault(); dropzone.classList.remove('dragging'); }));
+      dropzone.addEventListener('drop', e => e.dataTransfer.files[0] && readFile(e.dataTransfer.files[0]));
+
+      function readFile(file) {
+        statusEl.textContent = '';
+        const reader = new FileReader();
+        reader.onload = () => { try { render(JSON.parse(reader.result)); } catch (err) { fail("That file couldn't be read as a garage file."); } };
+        reader.onerror = () => fail("Couldn't read that file.");
+        reader.readAsText(file);
+      }
+
+      function fail(message) { results.hidden = true; statusEl.textContent = message; }
+
+      function decodePayload(b64) {
+        if (!b64) return null;
+        const bin = atob(b64);
+        const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+        return JSON.parse(new TextDecoder().decode(bytes));
+      }
+
+      const titleize = (raw) => !raw ? '' : raw.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim();
+      const fmtDate = (s) => s ? new Date(s).toLocaleDateString() : '—';
+
+      function nextDue(snap) {
+        if (!snap.lastReplacedDate || !snap.replacementIntervalMonths) return null;
+        const d = new Date(snap.lastReplacedDate);
+        d.setMonth(d.getMonth() + snap.replacementIntervalMonths);
+        return d;
+      }
+
+      function statusPill(snap) {
+        const due = nextDue(snap);
+        if (!due) return '<span class="pill">No date</span>';
+        const days = Math.round((due - new Date()) / 86400000);
+        if (days < 0) return `<span class="pill overdue">Overdue ${fmtDate(due)}</span>`;
+        if (days <= 30) return `<span class="pill soon">Due ${fmtDate(due)}</span>`;
+        return `<span class="pill good">Due ${fmtDate(due)}</span>`;
+      }
+
+      function render(file) {
+        if (!file || file.format !== 'g4r.garage.transfer') return fail("That doesn't look like a G4R garage file.");
+
+        const byType = (t) => (file.entries || []).filter(e => e.entityType === t)
+          .map(e => ({ id: e.entityID, ...(decodePayload(e.payload) || {}) }));
+        const vehicles = byType('Vehicle');
+        const items = byType('ReorderItem');
+        const orders = byType('OrderRecord');
+        const services = byType('ServiceRecord');
+
+        metaEl.innerHTML = [
+          ['Exported', fmtDate(file.exportedAt)],
+          ['From', (file.sourcePlatform || '—') + (file.appVersion ? ' · v' + file.appVersion : '')],
+          ['Vehicles', vehicles.length],
+          ['Items', items.length],
+          ['History', orders.length + services.length],
+          ['Photos', (file.attachments || []).length],
+        ].map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+
+        garageEl.innerHTML = vehicles.length ? vehicles.map(v => {
+          const mine = (list) => list.filter(x => x.vehicleID === v.id);
+          const vItems = mine(items), vOrders = mine(orders), vServices = mine(services);
+          const name = [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ') || 'Vehicle';
+          const sub = [v.mileage ? v.mileage.toLocaleString() + ' miles' : null, v.licensePlate, v.vin].filter(Boolean).join(' · ');
+
+          const itemRows = vItems.map(i => `<tr>
+              <td>${i.categoryRawValue === 'custom' && i.customCategoryName ? i.customCategoryName : titleize(i.categoryRawValue)}</td>
+              <td>${i.productName || '—'}</td>
+              <td>${statusPill(i)}</td>
+              <td>${titleize(i.orderStatusRawValue)}</td>
+            </tr>`).join('');
+
+          const orderRows = vOrders.map(o => `<tr><td>${o.itemTitle || titleize(o.categoryRawValue)}</td><td>${o.productName || '—'}</td><td>${fmtDate(o.installedAt)}</td></tr>`).join('');
+          const serviceRows = vServices.map(s => `<tr><td>${s.serviceDescription || '—'}</td><td>${titleize(s.providerTypeRawValue)}${s.providerName ? ' · ' + s.providerName : ''}</td><td>${fmtDate(s.serviceDate)}</td></tr>`).join('');
+
+          return `<section class="vehicle">
+            <h3>${name}</h3>
+            <p class="sub">${sub || '&nbsp;'}</p>
+            ${vItems.length ? `<table><thead><tr><th>Item</th><th>Product</th><th>Next due</th><th>Order status</th></tr></thead><tbody>${itemRows}</tbody></table>` : '<p class="sub">No replacement items.</p>'}
+            ${vOrders.length ? `<p class="subhead">Order history</p><table><thead><tr><th>Item</th><th>Product</th><th>Installed</th></tr></thead><tbody>${orderRows}</tbody></table>` : ''}
+            ${vServices.length ? `<p class="subhead">Service records</p><table><thead><tr><th>Service</th><th>Provider</th><th>Date</th></tr></thead><tbody>${serviceRows}</tbody></table>` : ''}
+          </section>`;
+        }).join('') : '<p>This garage file has no vehicles in it.</p>';
+
+        statusEl.textContent = '';
+        results.hidden = false;
+      }
+    </script>
+  </body>
+</html>
