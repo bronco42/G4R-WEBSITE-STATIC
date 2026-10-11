@@ -1,0 +1,949 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>G4R — Repair Case</title>
+    <meta name="description" content="Work one repair from “something's wrong” to “fixed, and here's what it really cost.” Decide repair vs replace, set a budget, shop parts, compare DIY vs a shop, request quotes, log photos and expenses — all stored in your browser.">
+    <link rel="stylesheet" href="./styles.css">
+    <style>
+      main { padding-bottom: 4rem; }
+      .viewer-note { border-left: 3px solid currentColor; padding: .6rem 0 .6rem 1rem; opacity: .85; margin: 1rem 0 1.5rem; }
+      .case-list { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+      .case-chip { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: .4rem .9rem; cursor: pointer; font-weight: 600; color: var(--ink); min-height: 0; }
+      .case-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+      .steps { display: flex; flex-wrap: wrap; gap: .4rem; margin: 1.25rem 0 .5rem; font-size: .8rem; }
+      .steps span { padding: .25rem .7rem; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); opacity: .7; }
+      .steps span.done { background: #e7f2ed; color: var(--accent-strong); border-color: #cfe3d9; opacity: 1; }
+      .steps span.now { background: var(--accent); color: #fff; border-color: var(--accent); opacity: 1; }
+      section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem 1.4rem; margin: 1rem 0; }
+      section.card h2 { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }
+      section.card h2 small { font-size: .8rem; font-weight: 600; opacity: .6; text-transform: uppercase; letter-spacing: .04em; }
+      .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+      .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+      .row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin: .75rem 0 0; }
+      .row button { min-height: 38px; padding: 0 14px; font-size: .9rem; }
+      button.small { min-height: 30px; padding: 0 10px; font-size: .8rem; }
+      button.ghost { background: transparent; color: var(--accent-strong); border: 1px solid var(--line); }
+      button.ghost:hover { background: #e7f2ed; }
+      button.danger { background: transparent; color: #b91c1c; border: 1px solid rgba(220,38,38,.4); }
+      button.danger:hover { background: rgba(220,38,38,.08); }
+      .tiers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: .5rem 0; }
+      .tier { border: 1px solid var(--line); border-radius: 8px; padding: .8rem .9rem; cursor: pointer; background: #fff; }
+      .tier.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,111,90,.15); }
+      .tier strong { display: block; }
+      .tier .band { font-weight: 800; color: var(--accent-strong); }
+      .tier p { margin: .25rem 0 0; font-size: .85rem; color: var(--muted); }
+      table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+      th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+      th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; opacity: .6; }
+      td input, td select, td textarea { min-height: 34px; padding: 5px 8px; font-size: .88rem; }
+      td.num input { text-align: right; width: 7em; }
+      .pill { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .75rem; font-weight: 600; background: rgba(128,128,128,.14); }
+      .pill.verified { background: rgba(22,163,74,.15); color: #15803d; }
+      .pill.likely { background: rgba(217,119,6,.15); color: #b45309; }
+      .pill.unknown { background: rgba(220,38,38,.12); color: #b91c1c; }
+      .pill.best { background: rgba(22,163,74,.15); color: #15803d; }
+      .checklist label { display: flex; gap: .6rem; align-items: flex-start; font-weight: 500; color: var(--ink); font-size: .95rem; margin: .35rem 0; }
+      .checklist input[type=checkbox] { width: auto; min-height: 0; margin-top: .3rem; }
+      .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: .75rem; }
+      .photo { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+      .photo img { display: block; width: 100%; aspect-ratio: 4/3; object-fit: cover; }
+      .photo input { border: 0; border-radius: 0; min-height: 32px; font-size: .82rem; }
+      .photo .photo-actions { display: flex; justify-content: space-between; padding: .3rem .4rem; font-size: .75rem; color: var(--muted); }
+      .photo .photo-actions button { min-height: 0; padding: 0; background: none; color: #b91c1c; font-size: .75rem; }
+      .compare td.total { font-weight: 800; }
+      .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: .5rem 0 1rem; }
+      .summary div { border: 1px solid var(--line); border-radius: 8px; padding: .7rem .9rem; background: #fff; }
+      .summary dt { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+      .summary dd { margin: .15rem 0 0; font-weight: 800; font-size: 1.15rem; }
+      .timeline { list-style: none; padding: 0; margin: .5rem 0 0; font-size: .88rem; }
+      .timeline li { padding: .35rem 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 9.5em 1fr; gap: .8rem; }
+      .timeline time { color: var(--muted); }
+      .affiliate { font-size: .78rem; color: var(--muted); }
+      .script { white-space: pre-wrap; background: #f4f7f5; border: 1px solid var(--line); border-radius: 8px; padding: .8rem 1rem; font-size: .9rem; font-family: inherit; }
+      textarea.notes { min-height: 70px; }
+      .hint { font-size: .85rem; color: var(--muted); margin: .25rem 0 .5rem; }
+      .status-line { font-weight: 600; min-height: 1.4em; }
+      .status-line.err { color: #b91c1c; }
+      details summary { cursor: pointer; font-weight: 700; color: var(--accent-strong); margin: .5rem 0; }
+      .sale-note { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 8px; padding: .8rem 1rem; font-size: .9rem; }
+      @media (max-width: 860px) { .grid3, .grid4, .tiers { grid-template-columns: 1fr 1fr; } .timeline li { grid-template-columns: 1fr; gap: .1rem; } }
+      @media (max-width: 560px) { .grid2, .grid3, .grid4, .tiers { grid-template-columns: 1fr; } button { width: auto; } }
+      @media print {
+        .site-header, .no-print, .steps, .case-list, button, .hint, textarea:placeholder-shown, input:placeholder-shown { display: none !important; }
+        section.card { break-inside: avoid; box-shadow: none; }
+        input, select, textarea { border: 0; padding: 0; min-height: 0; background: transparent; }
+        .photos { grid-template-columns: repeat(3, 1fr); }
+        .print-only { display: block !important; }
+      }
+      .print-only { display: none; }
+      .options3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: .5rem 0; }
+      .opt { border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.1rem; background: #fff; display: flex; flex-direction: column; gap: .4rem; }
+      .opt.picked { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,111,90,.15); }
+      .opt .tiername { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 800; }
+      .opt h3 { margin: 0; font-size: 1.05rem; }
+      .opt .price { font-size: 1.3rem; font-weight: 800; color: var(--accent-strong); }
+      .opt .price small { font-size: .75rem; color: var(--muted); font-weight: 600; }
+      .opt ul { margin: 0; padding-left: 1.1rem; font-size: .85rem; color: var(--muted); }
+      .opt .why { font-size: .85rem; margin: 0; }
+      .opt .btns { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: auto; padding-top: .4rem; }
+      .opt .btns button, .opt .btns a { min-height: 34px; padding: 0 10px; font-size: .85rem; display: inline-flex; align-items: center; border-radius: 8px; font-weight: 700; }
+      .opt .btns a { border: 1px solid var(--line); color: var(--accent-strong); }
+      .mode-toggle { display: inline-flex; gap: 0; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+      .mode-toggle button { min-height: 32px; padding: 0 12px; font-size: .82rem; background: transparent; color: var(--ink); border-radius: 0; }
+      .mode-toggle button.on { background: var(--accent); color: #fff; }
+      body.simple .detail { display: none; }
+      body.simple .steps { display: none; }
+      @media (max-width: 860px) { .options3 { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="./index.html" aria-label="G4R home">
+        <img src="./assets/g4r-icon.png" alt="" width="40" height="40">
+        <span>G4R</span>
+      </a>
+      <nav aria-label="Site">
+        <a href="./account.html">Account</a>
+        <a href="./garage-viewer.html">Garage Viewer</a>
+        <a href="./affiliate-disclosure.html">Disclosure</a>
+        <a href="./privacy.html">Privacy</a>
+        <a href="./support.html">Support</a>
+      </nav>
+    </header>
+
+    <main>
+      <h1>Repair Case</h1>
+      <p class="lede">One problem, start to finish: decide repair vs. replace, set a budget, shop parts, compare doing it yourself against a shop, request quotes, and log what it <em>really</em> cost. Photos and receipts stay with the record, so the next owner, the DMV, or a buyer can see the work.</p>
+      <p class="viewer-note"><strong>Yours, on this device.</strong> Everything on this page is saved in this browser only. Nothing is uploaded. Use <strong>Export</strong> to keep a copy or move it to the G4R app; use <strong>Print</strong> for an owner records packet.</p>
+
+      <div class="no-print">
+        <div class="row">
+          <button id="newCaseBtn" type="button">+ New case</button>
+          <button id="exportBtn" type="button" class="ghost">Export case (.json)</button>
+          <button id="importBtn" type="button" class="ghost">Import…</button>
+          <input type="file" id="importFile" accept=".json,application/json" hidden>
+          <button id="printBtn" type="button" class="ghost">Print / owner records packet</button>
+          <button id="deleteCaseBtn" type="button" class="danger">Delete this case</button>
+          <span class="mode-toggle" title="Simple shows the vehicle, your three options, one shop, photos and the summary. Detailed shows everything."><button type="button" id="modeSimple">Simple</button><button type="button" id="modeDetailed">Detailed</button></span>
+          <span id="saveStatus" class="status-line"></span>
+        </div>
+        <div class="case-list" id="caseList"></div>
+      </div>
+
+      <div id="caseView" hidden>
+        <div class="steps" id="steps"></div>
+
+        <!-- 1. Vehicle + case -->
+        <section class="card" id="sec-case">
+          <h2>Your vehicle &amp; the problem <small>case</small></h2>
+          <div class="grid4">
+            <label>Year <input data-f="v.year" inputmode="numeric" placeholder="2018"></label>
+            <label>Make <input data-f="v.make" placeholder="Honda"></label>
+            <label>Model <input data-f="v.model" placeholder="Ridgeline"></label>
+            <label>Trim <input data-f="v.trim" placeholder="RTL"></label>
+          </div>
+          <div class="grid3">
+            <label>Mileage <input data-f="v.mileage" inputmode="numeric" placeholder="87,500"></label>
+            <label>VIN <span class="hint" style="display:inline">(stays off messages unless you toggle it)</span><input data-f="v.vin" placeholder="optional"></label>
+            <label>License plate <input data-f="v.plate" placeholder="optional"></label>
+          </div>
+          <div class="grid3">
+            <label>Category
+              <select data-f="category" id="categorySel"></select>
+            </label>
+            <label>Case title <input data-f="title" placeholder="Radio replacement"></label>
+            <label>Status
+              <select data-f="status">
+                <option value="diagnosing">Diagnosing</option>
+                <option value="planning">Planning</option>
+                <option value="sourcing">Sourcing parts</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="inProgress">In progress</option>
+                <option value="completed">Completed</option>
+                <option value="abandoned">Abandoned</option>
+              </select>
+            </label>
+          </div>
+          <label>Symptom <textarea data-f="symptom" class="notes" placeholder="Screen stays black, no sound. Started after a cold morning…"></textarea></label>
+          <div id="vehicleFacts"></div>
+          <label>Notes <textarea data-f="notes.case" class="notes" placeholder="Anything else worth remembering about this problem."></textarea></label>
+        </section>
+
+        <!-- Your 3 options (simple mode's heart) -->
+        <section class="card" id="sec-options">
+          <h2>Your 3 options <small>one per budget</small></h2>
+          <p class="hint" id="optionsHint"></p>
+          <div class="options3" id="options3"></div>
+          <p class="affiliate">Prices are approximate street prices for planning; the retailer link shows today's. Amazon links are paid links (4DAT may earn a commission). Install parts and fitment are from the manufacturer's fit guide where cited; confirm for your exact trim before ordering.</p>
+          <label>Notes <textarea data-f="notes.options" class="notes" placeholder="Which one you're leaning toward and why."></textarea></label>
+        </section>
+
+        <!-- 2. Diagnose first -->
+        <section class="card detail" id="sec-diagnose">
+          <h2>2. Diagnose first — repair or replace? <small>$0 fixes come first</small></h2>
+          <p class="hint">Check these before buying anything. Whatever you find goes on the record either way.</p>
+          <div class="checklist" id="diagList"></div>
+          <div class="grid2">
+            <label>Outcome
+              <select data-f="diag.outcome">
+                <option value="">Undecided</option>
+                <option value="repaired">Fixed it — no replacement needed</option>
+                <option value="replace">Needs replacement</option>
+                <option value="repairable">Repairable (send unit out / component fix)</option>
+              </select>
+            </label>
+            <label>What you found <input data-f="diag.finding" placeholder="Fuse fine, unit dead after reset"></label>
+          </div>
+          <label>Notes <textarea data-f="notes.diag" class="notes"></textarea></label>
+        </section>
+
+        <!-- 3. Budget -->
+        <section class="card detail" id="sec-budget">
+          <h2>3. Budget <small>a band, not a brand</small></h2>
+          <div class="tiers" id="tiers"></div>
+          <div class="grid2" id="customBand" hidden>
+            <label>Min $ <input data-f="budget.min" inputmode="numeric"></label>
+            <label>Max $ <input data-f="budget.max" inputmode="numeric"></label>
+          </div>
+          <label>Notes <textarea data-f="notes.budget" class="notes" placeholder="Why this band? Must-haves (CarPlay, backup camera, keep steering controls)…"></textarea></label>
+        </section>
+
+        <!-- 4. Parts -->
+        <section class="card detail" id="sec-parts">
+          <h2>4. Shop parts <small>fitment is the hard part</small></h2>
+          <p class="hint">Add candidates as you find them. Fitment confidence is honest: <span class="pill verified">verified</span> only when a trusted source says it fits <em>your</em> year and trim.</p>
+          <div class="row" id="partLinks"></div>
+          <p class="affiliate">Amazon links carry 4DAT's associate tag — as an Amazon Associate, 4DAT may earn from qualifying purchases. Other retailer links are plain searches. Confirm fitment before you buy.</p>
+          <details><summary>Pre-purchase gotchas for this category</summary><div class="checklist" id="gotchas"></div></details>
+          <div style="overflow-x:auto">
+          <table id="partsTable">
+            <thead><tr><th>Part</th><th>Brand / part #</th><th>Tier</th><th>Price</th><th>Fitment</th><th>Also needed</th><th>Who buys</th><th>Status</th><th>Link</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+          </div>
+          <div class="row"><button type="button" class="ghost" id="addPartBtn">+ Add part candidate</button></div>
+          <label>Notes <textarea data-f="notes.parts" class="notes"></textarea></label>
+        </section>
+
+        <!-- 5. Avenues -->
+        <section class="card detail" id="sec-avenues">
+          <h2>5. Choose an avenue <small>DIY · with a friend · shop</small></h2>
+          <p class="hint">Estimates go here. Actuals go in Expenses below, so you can see how close you were.</p>
+          <div style="overflow-x:auto">
+          <table class="compare" id="avenuesTable">
+            <thead><tr><th>Avenue</th><th>Parts $</th><th>Labor $</th><th>Tools / extras $</th><th>Hours</th><th>Difficulty 1–5</th><th>Risk / warranty note</th><th>Total</th><th>Pick</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          </div>
+          <div id="diyBlock">
+            <details><summary>DIY checklist, tools, and the “bring a friend” list</summary>
+              <div class="checklist" id="diyList"></div>
+              <div class="grid2">
+                <label>Friend / helper <input data-f="diy.friend" placeholder="Who's helping, what they're lending"></label>
+                <label>Guide links <input data-f="diy.guides" placeholder="Paste links to the guides you're following"></label>
+              </div>
+              <p class="hint">Photograph connectors and trim before you unplug anything. Those photos attach to this case below.</p>
+            </details>
+          </div>
+          <label>Notes <textarea data-f="notes.avenues" class="notes"></textarea></label>
+        </section>
+
+        <!-- 6. Shops + quotes -->
+        <section class="card" id="sec-quotes">
+          <h2>Your shop or dealer <small>we draft the ask, you send it</small></h2>
+          <p class="hint">Add the shop, dealer, or technician you'd actually use. Pick an option above first and the request names that exact part.</p>
+          <div class="grid3">
+            <label>Your name <input data-f="me.name" placeholder="for the message signature"></label>
+            <label>Your phone <input data-f="me.phone" placeholder="optional"></label>
+            <label>Availability <input data-f="me.avail" placeholder="weekdays after 3, Saturdays"></label>
+          </div>
+          <div class="row">
+            <label style="display:flex;gap:.4rem;align-items:center"><input type="checkbox" data-f="msg.includeBudget" style="width:auto;min-height:0"> Include budget range</label>
+            <label style="display:flex;gap:.4rem;align-items:center"><input type="checkbox" data-f="msg.includeVIN" style="width:auto;min-height:0"> Include VIN</label>
+            <label>Part supply
+              <select data-f="msg.supply">
+                <option value="either">Open to either</option>
+                <option value="me">I'm supplying the part</option>
+                <option value="shop">Please quote with you supplying it</option>
+              </select>
+            </label>
+          </div>
+          <details><summary>Preview the quote request</summary><pre class="script" id="msgPreview"></pre>
+            <div class="row"><button type="button" class="ghost small" id="copyMsgBtn">Copy message</button></div>
+          </details>
+          <div style="overflow-x:auto">
+          <table id="quotesTable">
+            <thead><tr><th>Shop</th><th>Contact</th><th>Send</th><th>Parts $</th><th>Labor $</th><th>Fees $</th><th>Total</th><th>Part by</th><th>Warranty</th><th>Lead days</th><th>Valid until</th><th>Status</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+          </div>
+          <div class="row"><button type="button" class="ghost" id="addQuoteBtn">+ Add shop / quote</button></div>
+          <div id="callScript"></div>
+          <label>Notes <textarea data-f="notes.quotes" class="notes" placeholder="Who said what, who you'd actually trust with the dash…"></textarea></label>
+        </section>
+
+        <!-- 7. Photos -->
+        <section class="card" id="sec-photos">
+          <h2>Photos &amp; receipts <small>owner-owned records</small></h2>
+          <p class="sale-note"><strong>Why bother:</strong> dated photos of the problem, the part, the work, and the receipts are what proves the repair to a buyer, a dealer on trade-in, a warranty desk, or the DMV at title transfer. They stay with this record and print in the owner records packet.</p>
+          <div class="row no-print">
+            <input type="file" id="photoInput" accept="image/*" capture="environment" multiple hidden>
+            <button type="button" class="ghost" id="addPhotoBtn">+ Add photo / take picture</button>
+            <button type="button" class="ghost" id="addReceiptBtn">+ Add receipt image</button>
+            <span class="hint" id="photoHint"></span>
+          </div>
+          <div class="photos" id="photos"></div>
+        </section>
+
+        <!-- 8. Expenses -->
+        <section class="card detail" id="sec-expenses">
+          <h2>8. Expenses <small>actuals</small></h2>
+          <div style="overflow-x:auto">
+          <table id="expensesTable">
+            <thead><tr><th>Date</th><th>Kind</th><th>Vendor</th><th>What</th><th>Amount</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+          </div>
+          <div class="row"><button type="button" class="ghost" id="addExpenseBtn">+ Add expense</button></div>
+        </section>
+
+        <!-- 9. Custom fields -->
+        <section class="card detail" id="sec-custom">
+          <h2>9. Your own fields <small>custom</small></h2>
+          <p class="hint">Anything this page didn't think of: radio code location, warranty claim number, who recommended the shop, torque specs…</p>
+          <table id="customTable"><thead><tr><th style="width:30%">Field</th><th>Value</th><th></th></tr></thead><tbody></tbody></table>
+          <div class="row"><button type="button" class="ghost" id="addCustomBtn">+ Add field</button></div>
+        </section>
+
+        <!-- 10. Complete -->
+        <section class="card" id="sec-complete">
+          <h2>Done — what it really cost <small>summary</small></h2>
+          <dl class="summary" id="summary"></dl>
+          <div class="grid3">
+            <label>Completed on <input type="date" data-f="completedAt"></label>
+            <label>Mileage at completion <input data-f="completedMileage" inputmode="numeric"></label>
+            <label>Who did the work <input data-f="completedBy" placeholder="Me + Dave / Gagnons"></label>
+          </div>
+          <label>Service record description <input data-f="serviceDescription" placeholder="Replaced factory head unit with …"></label>
+          <div class="row no-print"><button type="button" id="completeBtn">Mark completed</button></div>
+          <p class="hint">Marking completed writes a service record line for this vehicle's history and closes the case. Exported JSON carries the service record so the G4R app can import it when the import ships.</p>
+          <div class="print-only" id="printFooter"></div>
+        </section>
+
+        <!-- Timeline -->
+        <section class="card detail" id="sec-timeline">
+          <h2>Timeline <small>append-only</small></h2>
+          <ul class="timeline" id="timeline"></ul>
+          <div class="row no-print"><input id="eventText" placeholder="Add a note to the timeline (e.g. “called Gagnons, left message”)" style="flex:1;min-width:220px"><button type="button" class="ghost" id="addEventBtn">Add</button></div>
+        </section>
+      </div>
+
+      <div id="emptyView">
+        <section class="card">
+          <h2>Start your first case</h2>
+          <p>Example: <em>“I need a new radio for my Honda Ridgeline. Replace it myself or have someone else do it?”</em> Click <strong>New case</strong>, enter the year, make and model, and you'll get three ready options — Low, Mid, High — with the install parts that fit. Pick one, add your shop or dealer, send the quote request.</p>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      // ------------------------------------------------------------------
+      // Repair Case — Phase A (client-only). Spec: Operations/G4R_Repair_Case_SPEC.md
+      // Storage: localStorage for the case list + case data; IndexedDB for photos.
+      // Field names mirror the spec's entities so a future import into the apps
+      // (RepairCase, CaseOption, PartCandidate, Quote, CaseExpense, CaseEvent) is direct.
+      // ------------------------------------------------------------------
+      const LS_KEY = 'g4r.repairCases.v1';
+      const ASSOCIATE_TAG = '4dat-20';
+      const uid = () => crypto.randomUUID();
+      const nowISO = () => new Date().toISOString();
+      const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      const num = (v) => { const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; };
+      const money = (n) => '$' + Math.round(n).toLocaleString();
+      const fmtDate = (s) => s ? new Date(s).toLocaleDateString() : '—';
+
+      // ---- Category seed: checklists, budget bands, gotchas, retailer links --
+      const CATEGORIES = {
+        radio: {
+          title: 'Radio / infotainment',
+          search: 'car stereo head unit',
+          bands: { low: [60, 200], mid: [200, 600], high: [600, 1500] },
+          bandText: {
+            low: 'Used/salvage OEM unit, refurbished, or repair the existing one. You accept the risk; little or no warranty.',
+            mid: 'New quality aftermarket unit, or reman OEM with warranty. Usually needs a dash kit + harness.',
+            high: 'New OEM from the dealer, or premium aftermarket with wireless CarPlay/Android Auto and camera support.',
+          },
+          diagnose: [
+            'Check the radio / audio fuses (cabin fuse box and under-hood box).',
+            'Disconnect the battery for 10 minutes, reconnect, try again (hard reset).',
+            'Check the harness connector behind the unit is seated; look for corrosion.',
+            'Is there a software update or a known issue/recall for this unit on this vehicle?',
+            'Does the screen light at all? Backlight-only failures are often repairable for less than replacement.',
+            'Do you have the anti-theft radio code (or does this vehicle need one)?',
+          ],
+          gotchas: [
+            'Anti-theft / radio code — find it before you pull the unit.',
+            'Steering-wheel controls need an adapter to keep working.',
+            'Factory amp / premium audio changes the harness you need.',
+            'Backup camera retention — confirm the new unit accepts the factory camera.',
+            'Antenna adapter — factory plugs are rarely standard.',
+            'Dash trim kit — the hole is almost never a plain double-DIN.',
+            'Climate or vehicle settings integrated into the head unit can rule out a simple swap on some vehicles. Verify for your generation and trim.',
+          ],
+          diy: [
+            'Photograph the dash and every connector before unplugging.',
+            'Disconnect the battery negative terminal; wait 10 minutes (airbag-adjacent trim).',
+            'Plastic trim tools, Phillips/Torx bits, zip ties, electrical tape, multimeter.',
+            'Bench-test the new unit on the harness before closing up the dash.',
+            'Stop and call a shop if: airbag connectors are in the way, wiring colors don’t match the harness chart, or trim won’t release.',
+          ],
+          alsoNeeded: 'dash kit, wiring harness, steering-control adapter, antenna adapter',
+        },
+        battery: {
+          title: 'Battery', search: 'car battery',
+          bands: { low: [80, 140], mid: [140, 220], high: [220, 400] },
+          bandText: { low: 'Store brand, shorter warranty.', mid: 'Name brand, 3-yr warranty.', high: 'AGM / OEM.' },
+          diagnose: ['Test voltage at rest (12.6V healthy) and while cranking.', 'Clean and tighten terminals.', 'Have the alternator tested free at a parts store.', 'Check the battery date code.'],
+          gotchas: ['Group size and terminal orientation.', 'AGM vs flooded — match what the vehicle calls for.', 'Battery registration on some newer vehicles.', 'Core charge refund.'],
+          diy: ['Photograph terminals before removal.', 'Negative off first, on last.', 'Memory saver if you want to keep radio presets.'], alsoNeeded: 'terminal cleaner, anti-corrosion washers',
+        },
+        brakes: {
+          title: 'Brakes (pads / rotors)', search: 'brake pads rotors',
+          bands: { low: [60, 150], mid: [150, 350], high: [350, 800] },
+          bandText: { low: 'Pads only, economy.', mid: 'Quality pads + rotors.', high: 'OEM or performance kit.' },
+          diagnose: ['Measure pad thickness.', 'Check rotor for scoring or lip.', 'Noise only when cold? Could be normal.', 'Pulsing = rotors; grinding = metal on metal, stop driving.'],
+          gotchas: ['Front vs rear, and which axle.', 'Electronic parking brake needs service mode.', 'Caliper hardware and lube included?', 'Brake fluid flush interval.'],
+          diy: ['Jack stands, never just a jack.', 'Torque wrench for lugs and caliper bolts.', 'Photograph clip orientation before removal.'], alsoNeeded: 'hardware kit, brake grease, brake cleaner',
+        },
+        tires: {
+          title: 'Tires', search: 'tires',
+          bands: { low: [320, 500], mid: [500, 800], high: [800, 1400] },
+          bandText: { low: 'Budget set of 4.', mid: 'Major brand all-season.', high: 'Premium / OEM spec.' },
+          diagnose: ['Tread depth (penny test, 2/32 min, 4/32 for wet).', 'Date code — over 6 years is suspect regardless of tread.', 'Uneven wear points to alignment, not tires.', 'Slow leak may be a plug, not a tire.'],
+          gotchas: ['Size, load index, speed rating on the door sticker.', 'TPMS sensors and reset.', 'Mounting/balancing/disposal fees.', 'Alignment after.'],
+          diy: ['Most people: buy online, have a shop mount.'], alsoNeeded: 'valve stems, TPMS service kits',
+        },
+        other: {
+          title: 'Other / custom', search: '',
+          bands: { low: [0, 100], mid: [100, 400], high: [400, 1500] },
+          bandText: { low: 'Cheapest realistic.', mid: 'Best value.', high: 'Cleanest fit and warranty.' },
+          diagnose: ['Is there a $0 fix? (fuse, connector, reset, software).', 'Is there a recall or TSB for this symptom?', 'Still under warranty?'],
+          gotchas: ['Confirm fitment for your exact year and trim.'], diy: ['Photograph before you take anything apart.'], alsoNeeded: '',
+        },
+      };
+      // ---- Curated fitment table (v1): make|model → year ranges → install parts + one candidate per tier.
+      // Head-unit prices are approximate street prices (Oct 2026) for planning only. Sources are shown on the card.
+      const FITMENT = {
+        'honda|ridgeline': [{
+          years: [2006, 2014], platform: 'Honda Ridgeline 2006–2014 (1st gen)',
+          facts: 'Double-DIN opening with a Metra kit. Trucks with factory navigation use a different kit (Metra 95-7884B).',
+          install: [
+            { name: 'Metra 95-7870G dash kit (double-DIN, gray; 95-7870T taupe)', price: 25, fitment: 'verified', source: 'metraonline.com 95-7870T fit list: Honda Ridgeline 2005–2014', url: 'https://www.metraonline.com/product/95-7870T' },
+            { name: 'Metra 70-1729 wiring harness (Honda 2009–2014)', price: 15, fitment: 'verified', source: 'Metra kit page lists 70-1729 for 2009–2014 Honda', url: 'https://www.metraonline.com/product/95-7870T' },
+            { name: 'Metra 40-HD10 antenna adapter (Honda 2005-up)', price: 10, fitment: 'verified', source: 'Metra kit page', url: 'https://www.metraonline.com/product/95-7870T' },
+            { name: 'Axxess ASWC-1 steering-wheel control interface (if you want the wheel buttons to keep working)', price: 50, fitment: 'likely', source: 'Universal interface; Ridgeline-specific fit not confirmed — check the Axxess fit guide', url: 'https://axxessinterfaces.com/resources/updates' },
+          ],
+          candidates: {
+            low:  { name: 'Pioneer MVH-S322BT (single-DIN, Bluetooth, no screen)', price: 110, why: 'Cheapest working radio with hands-free calling. Uses the single-DIN pocket kit (Metra 99-7870G) instead of the double-DIN kit.', fitment: 'likely', source: 'Standard single-DIN chassis; Metra 99-7870G listed for Ridgeline', url: 'https://www.metraonline.com/product/99-7870G', amazonQ: 'Pioneer MVH-S322BT', installOverride: ['Metra 99-7870G single-DIN kit w/ pocket', 'Metra 70-1729 harness', 'Metra 40-HD10 antenna adapter'] },
+            mid:  { name: 'Pioneer DMH-1800NEX (6.8" touchscreen, wired CarPlay / Android Auto)', price: 350, why: 'Best value: CarPlay/Android Auto, backup-camera input, and a known fit for this truck.', fitment: 'likely', source: 'Sonic Electronix lists it as “Fits your Ridgeline” (2010)', url: 'https://www.sonicelectronix.com/2010-honda-ridgeline-android-auto-stereos', amazonQ: 'Pioneer DMH-1800NEX' },
+            high: { name: 'Pioneer DMH-W3050NEX (6.8", wireless CarPlay / Android Auto)', price: 600, why: 'Wireless CarPlay/Android Auto, HD radio, camera input — the cleanest everyday experience.', fitment: 'likely', source: 'Sonic Electronix lists it for the 2010 Ridgeline', url: 'https://www.sonicelectronix.com/2010-honda-ridgeline-android-auto-stereos', amazonQ: 'Pioneer DMH-W3050NEX' },
+          },
+          labor: [120, 250], laborNote: 'Shops typically quote 1–2 hours of labor for a head unit swap with steering-control interface.',
+        }],
+      };
+      function fitmentFor(c) {
+        const key = `${(c.v.make || '').trim().toLowerCase()}|${(c.v.model || '').trim().toLowerCase()}`;
+        const y = num(c.v.year);
+        return (FITMENT[key] || []).find(r => !y || (y >= r.years[0] && y <= r.years[1])) || null;
+      }
+      function renderOptions() {
+        const c = active(); const host = document.getElementById('options3'); const hint = document.getElementById('optionsHint');
+        const cat = CATEGORIES[c.category] || CATEGORIES.other;
+        if (c.category !== 'radio') { hint.textContent = `Curated options exist for radios first. For ${cat.title.toLowerCase()}, use the budget bands and the retailer links in the detailed view.`; host.innerHTML = ''; return; }
+        const fit = fitmentFor(c);
+        if (!fit) {
+          hint.textContent = vehicleName(c) === 'Vehicle' ? 'Enter year, make and model above to see three ready options.' : `No curated options for a ${vehicleName(c)} yet — these links run the retailer's own fitment check for your truck.`;
+          const q = `${vehicleName(c)} car stereo`;
+          host.innerHTML = ['low', 'mid', 'high'].map(t => `<div class="opt"><span class="tiername">${t}</span><h3>${esc(cat.bandText[t].split('.')[0])}</h3><span class="price">${money(cat.bands[t][0])}–${money(cat.bands[t][1])} <small>band</small></span>
+            <div class="btns"><a href="https://www.crutchfield.com/search?${new URLSearchParams({ q })}" target="_blank" rel="noopener">Crutchfield fit check ↗</a><a href="https://www.amazon.com/s?${new URLSearchParams({ k: q, tag: ASSOCIATE_TAG })}" target="_blank" rel="noopener sponsored">Amazon (paid) ↗</a></div></div>`).join('');
+          return;
+        }
+        hint.innerHTML = `<strong>${esc(fit.platform)}.</strong> ${esc(fit.facts)} ${esc(fit.laborNote)}`;
+        const kitTotal = fit.install.reduce((s, p) => s + p.price, 0);
+        host.innerHTML = ['low', 'mid', 'high'].map(t => {
+          const k = fit.candidates[t]; const picked = c.parts.some(p => p.name === k.name && (p.status === 'chosen' || p.status === 'ordered' || p.status === 'received' || p.status === 'installed'));
+          const installList = k.installOverride || fit.install.map(p => p.name);
+          const total = k.price + kitTotal;
+          return `<div class="opt${picked ? ' picked' : ''}" data-tier="${t}">
+            <span class="tiername">${t} ${picked ? '· picked' : ''}</span>
+            <h3>${esc(k.name)}</h3>
+            <span class="price">≈ ${money(k.price)} <small>radio</small> &nbsp;·&nbsp; ≈ ${money(total)} <small>with install parts</small></span>
+            <p class="why">${esc(k.why)}</p>
+            <span><span class="pill ${k.fitment}">${k.fitment}</span> <small class="hint" style="display:inline">${esc(k.source)}</small></span>
+            <ul>${installList.map(n => `<li>${esc(n)}</li>`).join('')}</ul>
+            <div class="btns">
+              <button type="button" data-pick-tier="${t}">${picked ? 'Picked ✓' : 'Pick this'}</button>
+              <a href="https://www.amazon.com/s?${new URLSearchParams({ k: k.amazonQ, tag: ASSOCIATE_TAG })}" target="_blank" rel="noopener sponsored">Amazon (paid) ↗</a>
+              <a href="${esc(k.url)}" target="_blank" rel="noopener">Fit source ↗</a>
+            </div></div>`;
+        }).join('');
+        host.querySelectorAll('[data-pick-tier]').forEach(b => b.addEventListener('click', () => pickCandidate(fit, b.dataset.pickTier)));
+      }
+      function pickCandidate(fit, tier) {
+        const c = active(); const k = fit.candidates[tier];
+        // un-choose any other curated pick, then add/choose this one + its install parts
+        c.parts.forEach(p => { if (p.curated && p.status === 'chosen') p.status = 'considering'; });
+        const addOrChoose = (spec, t, status) => {
+          let p = c.parts.find(x => x.name === spec.name);
+          if (!p) { p = { id: uid(), name: spec.name, brand: '', tier: t, price: spec.price, fitment: spec.fitment, fitmentSource: spec.source, alsoNeeded: '', supplier: 'undecided', status, sourceURL: spec.url, curated: true }; c.parts.push(p); }
+          else { p.status = status; }
+          return p;
+        };
+        addOrChoose(k, tier, 'chosen');
+        const kit = k.installOverride ? k.installOverride.map((n, i) => ({ name: n, price: fit.install[i]?.price ?? 0, fitment: 'likely', source: 'see dash kit fit list', url: fit.install[0].url })) : fit.install;
+        kit.forEach(p => addOrChoose(p, tier, 'chosen'));
+        c.budget.tier = tier; const b = (CATEGORIES.radio.bands)[tier]; c.budget.min = b[0]; c.budget.max = b[1];
+        // seed avenue estimates so the comparison + summary have numbers
+        const partsTotal = k.price + kit.reduce((s, p) => s + (p.price || 0), 0);
+        c.options.forEach(o => {
+          if (o.path === 'diy' || o.path === 'diyFriend') { o.parts = partsTotal; o.labor = 0; o.tools = o.tools || 25; o.hours = o.hours || 2; }
+          if (o.path === 'shopMyPart') { o.parts = partsTotal; o.labor = o.labor || fit.labor[1]; }
+          if (o.path === 'shopAll') { o.parts = Math.round(partsTotal * 1.2); o.labor = o.labor || fit.labor[1]; }
+        });
+        if (c.status === 'diagnosing') c.status = 'planning';
+        logEvent(c, 'option', `Picked ${tier} option: ${k.name}`);
+        renderOptions(); renderTiers(); renderAllTables(); renderSteps(); bindFields(); renderMessage(); renderSummary(); renderTimeline(); save(true);
+      }
+      // Simple / detailed mode
+      function setMode(m) { document.body.classList.toggle('simple', m === 'simple'); document.getElementById('modeSimple').classList.toggle('on', m === 'simple'); document.getElementById('modeDetailed').classList.toggle('on', m !== 'simple'); try { localStorage.setItem('g4r.repairCase.mode', m); } catch {} }
+      document.getElementById('modeSimple').addEventListener('click', () => setMode('simple'));
+      document.getElementById('modeDetailed').addEventListener('click', () => setMode('detailed'));
+      setMode((() => { try { return localStorage.getItem('g4r.repairCase.mode') || 'simple'; } catch { return 'simple'; } })());
+
+      const AVENUES = [
+        { key: 'diy', label: 'DIY (just me)' },
+        { key: 'diyFriend', label: 'DIY with a friend' },
+        { key: 'shopMyPart', label: 'Shop installs my part' },
+        { key: 'shopAll', label: 'Shop supplies + installs' },
+        { key: 'dealer', label: 'Dealer' },
+      ];
+      const STEP_ORDER = ['diagnosing', 'planning', 'sourcing', 'scheduled', 'inProgress', 'completed'];
+      const STEP_LABEL = { diagnosing: 'Diagnose', planning: 'Budget & avenue', sourcing: 'Parts & quotes', scheduled: 'Scheduled', inProgress: 'In progress', completed: 'Completed', abandoned: 'Abandoned' };
+
+      // ---- Persistence --------------------------------------------------
+      function loadAll() { try { return JSON.parse(localStorage.getItem(LS_KEY)) || { cases: [], activeID: null }; } catch { return { cases: [], activeID: null }; } }
+      let store = loadAll();
+      let saveTimer = null;
+      const saveStatus = document.getElementById('saveStatus');
+      function save(immediate) {
+        clearTimeout(saveTimer);
+        const doSave = () => {
+          try { localStorage.setItem(LS_KEY, JSON.stringify(store)); saveStatus.textContent = 'Saved ' + new Date().toLocaleTimeString(); saveStatus.className = 'status-line'; }
+          catch (e) { saveStatus.textContent = 'Could not save: ' + e.message; saveStatus.className = 'status-line err'; }
+        };
+        if (immediate) doSave(); else saveTimer = setTimeout(doSave, 250);
+      }
+      const active = () => store.cases.find(c => c.id === store.activeID);
+
+      // Photos live in IndexedDB (localStorage is too small for images).
+      const idb = {
+        db: null,
+        open() {
+          return new Promise((res, rej) => {
+            if (this.db) return res(this.db);
+            const r = indexedDB.open('g4r-repair-photos', 1);
+            r.onupgradeneeded = () => r.result.createObjectStore('photos', { keyPath: 'id' });
+            r.onsuccess = () => { this.db = r.result; res(this.db); };
+            r.onerror = () => rej(r.error);
+          });
+        },
+        async put(rec) { const db = await this.open(); return new Promise((res, rej) => { const t = db.transaction('photos', 'readwrite'); t.objectStore('photos').put(rec); t.oncomplete = res; t.onerror = () => rej(t.error); }); },
+        async get(id) { const db = await this.open(); return new Promise((res, rej) => { const r = db.transaction('photos').objectStore('photos').get(id); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+        async del(id) { const db = await this.open(); return new Promise((res, rej) => { const t = db.transaction('photos', 'readwrite'); t.objectStore('photos').delete(id); t.oncomplete = res; t.onerror = () => rej(t.error); }); },
+      };
+
+      // ---- Case factory ---------------------------------------------------
+      function newCase(prefill) {
+        const last = store.cases[0];
+        const v = prefill?.v || (last ? { ...last.v } : { year: '', make: '', model: '', trim: '', mileage: '', vin: '', plate: '' });
+        return {
+          id: uid(), createdAt: nowISO(), v,
+          category: 'radio', title: '', status: 'diagnosing', symptom: '',
+          vehicleFacts: {},
+          diag: { checks: {}, outcome: '', finding: '' },
+          budget: { tier: 'mid', min: '', max: '' },
+          parts: [], options: AVENUES.map(a => ({ id: uid(), path: a.key, parts: '', labor: '', tools: '', hours: '', difficulty: '', risk: '' })),
+          chosenOptionID: null,
+          diy: { checks: {}, friend: '', guides: '' },
+          me: { name: '', phone: '', avail: '' },
+          msg: { includeBudget: false, includeVIN: false, supply: 'either' },
+          quotes: [], photos: [], expenses: [], custom: [],
+          notes: { case: '', diag: '', budget: '', parts: '', avenues: '', quotes: '', options: '' },
+          completedAt: '', completedMileage: '', completedBy: '', serviceDescription: '', serviceRecord: null,
+          events: [{ id: uid(), at: nowISO(), kind: 'created', text: 'Case opened' }],
+        };
+      }
+      function logEvent(c, kind, text) { c.events.push({ id: uid(), at: nowISO(), kind, text }); }
+
+      // ---- Generic field binding: data-f="a.b.c" --------------------------
+      const getPath = (o, p) => p.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
+      const setPath = (o, p, val) => { const ks = p.split('.'); let x = o; for (const k of ks.slice(0, -1)) { if (x[k] == null) x[k] = {}; x = x[k]; } x[ks.at(-1)] = val; };
+      function bindFields() {
+        const c = active();
+        document.querySelectorAll('[data-f]').forEach(el => {
+          const val = getPath(c, el.dataset.f);
+          if (el.type === 'checkbox') el.checked = !!val; else el.value = val ?? '';
+        });
+      }
+      document.addEventListener('input', (e) => {
+        const el = e.target; const c = active();
+        if (!c || !el.dataset.f) return;
+        setPath(c, el.dataset.f, el.type === 'checkbox' ? el.checked : el.value);
+        if (el.dataset.f === 'category') { renderCategory(); }
+        if (el.dataset.f === 'status') { renderSteps(); logEvent(c, 'status', 'Status → ' + STEP_LABEL[c.status]); renderTimeline(); }
+        if (el.dataset.f.startsWith('v.') || el.dataset.f === 'title') renderCaseList();
+        if (el.dataset.f.startsWith('v.') || el.dataset.f === 'category') renderOptions();
+        if (el.dataset.f.startsWith('me.') || el.dataset.f.startsWith('msg.') || el.dataset.f === 'symptom' || el.dataset.f.startsWith('v.') || el.dataset.f.startsWith('budget.')) renderMessage();
+        renderSummary(); save();
+      });
+
+      // ---- Rendering --------------------------------------------------------
+      const vehicleName = (c) => [c.v.year, c.v.make, c.v.model, c.v.trim].filter(Boolean).join(' ') || 'Vehicle';
+      const caseName = (c) => c.title || (CATEGORIES[c.category]?.title ?? 'Case');
+
+      function renderCaseList() {
+        const el = document.getElementById('caseList');
+        el.innerHTML = store.cases.map(c => `<button type="button" class="case-chip${c.id === store.activeID ? ' active' : ''}" data-id="${c.id}">${esc(caseName(c))} · ${esc(vehicleName(c))} <span style="opacity:.7;font-weight:500">· ${esc(STEP_LABEL[c.status] || c.status)}</span></button>`).join('');
+        el.querySelectorAll('.case-chip').forEach(b => b.addEventListener('click', () => { store.activeID = b.dataset.id; save(true); renderCase(); }));
+      }
+      function renderSteps() {
+        const c = active(); const el = document.getElementById('steps');
+        const idx = STEP_ORDER.indexOf(c.status);
+        el.innerHTML = STEP_ORDER.map((s, i) => `<span class="${i < idx ? 'done' : i === idx ? 'now' : ''}">${STEP_LABEL[s]}</span>`).join('') + (c.status === 'abandoned' ? '<span class="now">Abandoned</span>' : '');
+      }
+      function renderCategory() {
+        const c = active(); const cat = CATEGORIES[c.category] || CATEGORIES.other;
+        const sel = document.getElementById('categorySel');
+        sel.innerHTML = Object.entries(CATEGORIES).map(([k, v]) => `<option value="${k}">${v.title}</option>`).join('');
+        sel.value = c.category;
+        // vehicle facts for audio
+        const vf = document.getElementById('vehicleFacts');
+        if (c.category === 'radio') {
+          vf.innerHTML = `<p class="hint">Facts fitment depends on (asked once, kept on the vehicle):</p><div class="grid4">
+            <label>Factory unit <input data-f="vehicleFacts.unit" placeholder="Display Audio / base / nav"></label>
+            <label>Premium audio / amp <select data-f="vehicleFacts.amp"><option value="">?</option><option>yes</option><option>no</option></select></label>
+            <label>Backup camera <select data-f="vehicleFacts.camera"><option value="">?</option><option>yes</option><option>no</option></select></label>
+            <label>Steering controls <select data-f="vehicleFacts.swc"><option value="">?</option><option>yes</option><option>no</option></select></label></div>`;
+        } else vf.innerHTML = '';
+        const checklist = (host, items, bag) => {
+          host.innerHTML = items.map((t, i) => `<label><input type="checkbox" data-check="${i}" ${bag[i] ? 'checked' : ''}> <span>${esc(t)}</span></label>`).join('');
+          host.querySelectorAll('input').forEach(cb => cb.addEventListener('change', () => { bag[cb.dataset.check] = cb.checked; save(); }));
+        };
+        checklist(document.getElementById('diagList'), cat.diagnose, c.diag.checks);
+        checklist(document.getElementById('gotchas'), cat.gotchas, (c.gotchaChecks ||= {}));
+        checklist(document.getElementById('diyList'), cat.diy, c.diy.checks);
+        renderTiers(); renderPartLinks(); bindFields();
+      }
+      function renderTiers() {
+        const c = active(); const cat = CATEGORIES[c.category] || CATEGORIES.other;
+        const el = document.getElementById('tiers');
+        const tiers = ['low', 'mid', 'high', 'custom'];
+        el.innerHTML = tiers.map(t => {
+          const band = cat.bands[t];
+          return `<div class="tier${c.budget.tier === t ? ' active' : ''}" data-tier="${t}" role="button" tabindex="0">
+            <strong>${t === 'custom' ? 'Custom' : t[0].toUpperCase() + t.slice(1)}</strong>
+            <span class="band">${band ? money(band[0]) + ' – ' + money(band[1]) : (c.budget.min || c.budget.max ? money(num(c.budget.min)) + ' – ' + money(num(c.budget.max)) : 'your range')}</span>
+            <p>${t === 'custom' ? 'Set your own min / max.' : esc(cat.bandText[t])}</p></div>`;
+        }).join('');
+        el.querySelectorAll('.tier').forEach(d => {
+          const pick = () => { c.budget.tier = d.dataset.tier; if (d.dataset.tier !== 'custom') { const b = cat.bands[d.dataset.tier]; c.budget.min = b[0]; c.budget.max = b[1]; } renderTiers(); bindFields(); renderMessage(); renderSummary(); save(); };
+          d.addEventListener('click', pick); d.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') pick(); });
+        });
+        document.getElementById('customBand').hidden = c.budget.tier !== 'custom';
+      }
+      function renderPartLinks() {
+        const c = active(); const cat = CATEGORIES[c.category] || CATEGORIES.other;
+        const q = `${vehicleName(c)} ${cat.search}`.trim();
+        const links = [
+          ['Amazon (paid link)', `https://www.amazon.com/s?${new URLSearchParams({ k: q, tag: ASSOCIATE_TAG })}`],
+          ['Crutchfield fitment', `https://www.crutchfield.com/search?${new URLSearchParams({ q })}`],
+          ['RockAuto', 'https://www.rockauto.com/'],
+          ['eBay (used / OEM)', `https://www.ebay.com/sch/i.html?${new URLSearchParams({ _nkw: q + ' OEM' })}`],
+          ['Dealer parts (search)', `https://www.google.com/search?${new URLSearchParams({ q: `${c.v.make} OEM ${cat.search} ${c.v.year} ${c.v.model} parts` })}`],
+        ];
+        document.getElementById('partLinks').innerHTML = links.map(([t, u]) => `<a class="ghost" href="${esc(u)}" target="_blank" rel="noopener noreferrer sponsored" style="display:inline-block;padding:.45rem .8rem;border:1px solid var(--line);border-radius:8px;font-weight:700">${t} ↗</a>`).join('');
+      }
+
+      // ---- Tables (parts / avenues / quotes / expenses / custom) ----------
+      const sel = (opts, val) => opts.map(([v, t]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${t}</option>`).join('');
+      function tableRows(tbody, list, rowHTML, onChange) {
+        tbody.innerHTML = list.map((r, i) => `<tr data-i="${i}">${rowHTML(r, i)}<td><button type="button" class="danger small" data-del="${i}">✕</button></td></tr>`).join('');
+        tbody.querySelectorAll('[data-k]').forEach(el => el.addEventListener('input', () => {
+          const r = list[+el.closest('tr').dataset.i];
+          r[el.dataset.k] = el.type === 'checkbox' ? el.checked : el.value;
+          onChange && onChange(r, el); renderSummary(); save();
+        }));
+        tbody.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => { list.splice(+b.dataset.del, 1); renderAllTables(); renderSummary(); save(); }));
+      }
+      function renderParts() {
+        const c = active();
+        tableRows(document.querySelector('#partsTable tbody'), c.parts, (p) => `
+          <td><input data-k="name" value="${esc(p.name)}" placeholder="Pioneer DMH-…"></td>
+          <td><input data-k="brand" value="${esc(p.brand)}" placeholder="brand / part #"></td>
+          <td><select data-k="tier">${sel([['low', 'Low'], ['mid', 'Mid'], ['high', 'High']], p.tier)}</select></td>
+          <td class="num"><input data-k="price" value="${esc(p.price)}" inputmode="decimal" placeholder="0"></td>
+          <td><select data-k="fitment">${sel([['unknown', 'Unknown'], ['likely', 'Likely'], ['verified', 'Verified']], p.fitment)}</select><br><input data-k="fitmentSource" value="${esc(p.fitmentSource)}" placeholder="source" style="margin-top:4px"></td>
+          <td><input data-k="alsoNeeded" value="${esc(p.alsoNeeded)}" placeholder="${esc(CATEGORIES[c.category]?.alsoNeeded || '')}"></td>
+          <td><select data-k="supplier">${sel([['undecided', 'Undecided'], ['me', 'Me'], ['shop', 'Shop']], p.supplier)}</select></td>
+          <td><select data-k="status">${sel([['considering', 'Considering'], ['chosen', 'Chosen'], ['ordered', 'Ordered'], ['received', 'Received'], ['installed', 'Installed'], ['returned', 'Returned']], p.status)}</select></td>
+          <td><input data-k="sourceURL" value="${esc(p.sourceURL)}" placeholder="paste link">${p.sourceURL ? `<br><a href="${esc(p.sourceURL)}" target="_blank" rel="noopener noreferrer">open ↗</a>` : ''}</td>`,
+          (r, el) => { if (el.dataset.k === 'status' && (r.status === 'ordered' || r.status === 'received' || r.status === 'installed')) { logEvent(c, 'part', `${r.name || 'Part'} ${r.status}`); renderTimeline(); } });
+      }
+      function avenueTotal(o) { return num(o.parts) + num(o.labor) + num(o.tools); }
+      function renderAvenues() {
+        const c = active(); const tbody = document.querySelector('#avenuesTable tbody');
+        const totals = c.options.map(avenueTotal); const filled = c.options.filter(o => avenueTotal(o) > 0);
+        const cheapest = filled.length ? Math.min(...filled.map(avenueTotal)) : null;
+        tbody.innerHTML = c.options.map((o, i) => `<tr data-i="${i}">
+          <td><strong>${AVENUES.find(a => a.key === o.path)?.label || o.path}</strong></td>
+          <td class="num"><input data-k="parts" value="${esc(o.parts)}" inputmode="decimal"></td>
+          <td class="num"><input data-k="labor" value="${esc(o.labor)}" inputmode="decimal"></td>
+          <td class="num"><input data-k="tools" value="${esc(o.tools)}" inputmode="decimal"></td>
+          <td class="num"><input data-k="hours" value="${esc(o.hours)}" inputmode="decimal"></td>
+          <td class="num"><input data-k="difficulty" value="${esc(o.difficulty)}" inputmode="numeric"></td>
+          <td><input data-k="risk" value="${esc(o.risk)}" placeholder="warranty? who's liable if the part is wrong?"></td>
+          <td class="total">${totals[i] ? money(totals[i]) : '—'} ${cheapest !== null && totals[i] === cheapest ? '<span class="pill best">cheapest</span>' : ''}</td>
+          <td><input type="radio" name="pick" ${c.chosenOptionID === o.id ? 'checked' : ''} data-pick="${o.id}" style="width:auto;min-height:0"></td></tr>`).join('');
+        tbody.querySelectorAll('[data-k]').forEach(el => el.addEventListener('input', () => { const o = c.options[+el.closest('tr').dataset.i]; o[el.dataset.k] = el.value; renderSummary(); save(); }));
+        tbody.querySelectorAll('[data-k]').forEach(el => el.addEventListener('blur', renderAvenues));
+        tbody.querySelectorAll('[data-pick]').forEach(r => r.addEventListener('change', () => { c.chosenOptionID = r.dataset.pick; const o = c.options.find(x => x.id === r.dataset.pick); logEvent(c, 'avenue', 'Chose avenue: ' + (AVENUES.find(a => a.key === o.path)?.label)); if (c.status === 'diagnosing') c.status = 'planning'; bindFields(); renderSteps(); renderTimeline(); renderSummary(); save(); }));
+      }
+      function quoteTotal(q) { return q.total !== '' && q.total != null && num(q.total) ? num(q.total) : num(q.parts) + num(q.labor) + num(q.fees); }
+      function renderQuotes() {
+        const c = active();
+        tableRows(document.querySelector('#quotesTable tbody'), c.quotes, (q, i) => `
+          <td><input data-k="shop" value="${esc(q.shop)}" placeholder="Gagnons Auto"></td>
+          <td><input data-k="email" value="${esc(q.email)}" placeholder="email"><input data-k="phone" value="${esc(q.phone)}" placeholder="phone" style="margin-top:4px"></td>
+          <td><div style="display:grid;gap:4px"><button type="button" class="ghost small" data-send="email" data-q="${i}">Email</button><button type="button" class="ghost small" data-send="sms" data-q="${i}">Text</button><button type="button" class="ghost small" data-send="call" data-q="${i}">Call script</button></div></td>
+          <td class="num"><input data-k="parts" value="${esc(q.parts)}" inputmode="decimal"></td>
+          <td class="num"><input data-k="labor" value="${esc(q.labor)}" inputmode="decimal"></td>
+          <td class="num"><input data-k="fees" value="${esc(q.fees)}" inputmode="decimal"></td>
+          <td class="num"><input data-k="total" value="${esc(q.total)}" inputmode="decimal" placeholder="${quoteTotal(q) ? Math.round(quoteTotal(q)) : 'auto'}"></td>
+          <td><select data-k="partSupplier">${sel([['shop', 'Shop'], ['me', 'Me']], q.partSupplier)}</select></td>
+          <td><input data-k="warranty" value="${esc(q.warranty)}" placeholder="12 mo labor"></td>
+          <td class="num"><input data-k="leadDays" value="${esc(q.leadDays)}" inputmode="numeric"></td>
+          <td><input type="date" data-k="validUntil" value="${esc(q.validUntil)}"></td>
+          <td><select data-k="status">${sel([['todo', 'Not sent'], ['requested', 'Requested'], ['received', 'Received'], ['accepted', 'Accepted'], ['declined', 'Declined'], ['expired', 'Expired']], q.status)}</select></td>`,
+          (q, el) => { if (el.dataset.k === 'status') { logEvent(c, 'quote', `${q.shop || 'Shop'}: quote ${q.status}`); if (q.status === 'accepted' && STEP_ORDER.indexOf(c.status) < STEP_ORDER.indexOf('scheduled')) { c.status = 'scheduled'; bindFields(); renderSteps(); } renderTimeline(); } });
+        document.querySelectorAll('[data-send]').forEach(b => b.addEventListener('click', () => sendQuoteRequest(+b.dataset.q, b.dataset.send)));
+      }
+      function renderExpenses() {
+        const c = active();
+        tableRows(document.querySelector('#expensesTable tbody'), c.expenses, (x) => `
+          <td><input type="date" data-k="date" value="${esc(x.date)}"></td>
+          <td><select data-k="kind">${sel([['part', 'Part'], ['labor', 'Labor'], ['tool', 'Tool'], ['shipping', 'Shipping'], ['tax', 'Tax / fees'], ['other', 'Other']], x.kind)}</select></td>
+          <td><input data-k="vendor" value="${esc(x.vendor)}"></td>
+          <td><input data-k="what" value="${esc(x.what)}"></td>
+          <td class="num"><input data-k="amount" value="${esc(x.amount)}" inputmode="decimal"></td>`);
+      }
+      function renderCustom() {
+        const c = active();
+        tableRows(document.querySelector('#customTable tbody'), c.custom, (f) => `
+          <td><input data-k="key" value="${esc(f.key)}" placeholder="Radio code location"></td>
+          <td><input data-k="value" value="${esc(f.value)}" placeholder="glovebox sticker / dealer printout"></td>`);
+      }
+      function renderAllTables() { renderParts(); renderAvenues(); renderQuotes(); renderExpenses(); renderCustom(); }
+
+      // ---- Quote request message -------------------------------------------
+      function buildMessage(c, form) {
+        const cat = CATEGORIES[c.category] || CATEGORIES.other;
+        const veh = vehicleName(c) + (c.vehicleFacts?.unit ? ` (${c.vehicleFacts.unit})` : '');
+        const chosenPart = c.parts.find(p => p.status === 'chosen' && p.curated && !/^Metra|^Axxess/.test(p.name)) || c.parts.find(p => p.status === 'chosen' || p.status === 'ordered');
+        const supplyBase = { either: 'open to either you supplying the part or me supplying it', me: 'I have / will have the part — please quote install only', shop: 'please quote with you supplying the part' }[c.msg.supply];
+        const supply = chosenPart ? `${supplyBase}. The unit I'm looking at is a ${chosenPart.name}${c.parts.filter(p => p.status === 'chosen' && p !== chosenPart).length ? ' (plus dash kit / harness / antenna adapter)' : ''}` : supplyBase;
+        const budget = c.msg.includeBudget && (c.budget.min || c.budget.max) ? `\nBudget range: ${money(num(c.budget.min))}–${money(num(c.budget.max))}.` : '';
+        const vin = c.msg.includeVIN && c.v.vin ? `\nVIN: ${c.v.vin}` : '';
+        const job = c.title || cat.title.toLowerCase();
+        const sig = [c.me.name, c.me.phone].filter(Boolean).join(' · ');
+        if (form === 'sms') return `Hi — quote request: ${job} on a ${veh}. Issue: ${c.symptom || '(describe)'}. Part: ${supply}. Please text parts+labor out-the-door, lead time, and warranty.${budget} Thanks${c.me.name ? ', ' + c.me.name : ''}.`;
+        if (form === 'call') return `CALL SCRIPT — ${job}, ${veh}\n• "Hi, I'm looking for a quote to ${job.toLowerCase().includes('replace') ? job.toLowerCase() : 'do a ' + job.toLowerCase()} on my ${veh}."\n• Issue: ${c.symptom || '(describe)'}\n• Part: ${supply}.\n• Ask: out-the-door price split into parts and labor? Lead time? Warranty on labor (and on a customer-supplied part)?${c.category === 'radio' ? '\n• Ask: is the radio code / reset / steering-control adapter covered?' : ''}\n• Availability: ${c.me.avail || '(yours)'}${budget}\n→ Log the numbers in the quote row when you hang up.`;
+        return `Subject: Quote request — ${job}, ${veh}\n\nHi — I'm looking for a quote for a ${job.toLowerCase()} on my ${veh}.\nIssue: ${c.symptom || '(describe the symptom)'}\nPart: ${supply}.\nPlease include: out-the-door price split into parts and labor, whether you'll install a customer-supplied part (and the warranty if so), lead time${c.category === 'radio' ? ', and whether the radio code / reset and steering-control adapter are covered' : ''}.${budget}${vin}\nAvailability: ${c.me.avail || '(flexible)'}\n\nThanks — ${sig || '(your name · phone)'}`;
+      }
+      function renderMessage() { const c = active(); if (c) document.getElementById('msgPreview').textContent = buildMessage(c, 'email'); }
+      function sendQuoteRequest(i, channel) {
+        const c = active(); const q = c.quotes[i]; if (!q) return;
+        const msg = buildMessage(c, channel);
+        if (channel === 'email') {
+          const [subjLine, ...rest] = msg.split('\n'); const subject = subjLine.replace(/^Subject:\s*/, '');
+          location.href = `mailto:${encodeURIComponent(q.email || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(rest.join('\n').trim())}`;
+        } else if (channel === 'sms') {
+          location.href = `sms:${encodeURIComponent(q.phone || '')}?&body=${encodeURIComponent(msg)}`;
+        } else {
+          document.getElementById('callScript').innerHTML = `<p class="subhead" style="margin-top:1rem;font-weight:700">Call script for ${esc(q.shop || 'this shop')}${q.phone ? ` · <a href="tel:${esc(q.phone)}">${esc(q.phone)}</a>` : ''}</p><pre class="script">${esc(msg)}</pre>`;
+        }
+        if (q.status === 'todo' || !q.status) { q.status = 'requested'; q.requestedAt = nowISO(); q.channel = channel; }
+        logEvent(c, 'quote', `Quote requested from ${q.shop || 'shop'} via ${channel}`);
+        if (STEP_ORDER.indexOf(c.status) < STEP_ORDER.indexOf('sourcing')) { c.status = 'sourcing'; bindFields(); renderSteps(); }
+        renderQuotes(); renderTimeline(); save(true);
+      }
+      document.getElementById('copyMsgBtn').addEventListener('click', async () => { await navigator.clipboard.writeText(buildMessage(active(), 'email')); saveStatus.textContent = 'Message copied'; });
+
+      // ---- Photos -------------------------------------------------------------
+      async function addPhotos(files, kind) {
+        const c = active(); const hint = document.getElementById('photoHint');
+        for (const f of files) {
+          const id = uid();
+          const blob = await shrink(f);
+          await idb.put({ id, blob, type: blob.type });
+          c.photos.push({ id, kind, caption: '', takenAt: nowISO(), name: f.name, bytes: blob.size });
+          logEvent(c, 'photo', `${kind === 'receipt' ? 'Receipt' : 'Photo'} added${f.name ? ': ' + f.name : ''}`);
+        }
+        hint.textContent = ''; save(true); renderPhotos(); renderTimeline(); renderSummary();
+      }
+      function shrink(file) {
+        return new Promise((res) => {
+          const img = new Image(); const url = URL.createObjectURL(file);
+          img.onload = () => {
+            const max = 1600; const s = Math.min(1, max / Math.max(img.width, img.height));
+            const cv = document.createElement('canvas'); cv.width = Math.round(img.width * s); cv.height = Math.round(img.height * s);
+            cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+            cv.toBlob(b => { URL.revokeObjectURL(url); res(b || file); }, 'image/jpeg', 0.85);
+          };
+          img.onerror = () => { URL.revokeObjectURL(url); res(file); };
+          img.src = url;
+        });
+      }
+      const photoURLs = new Map();
+      async function renderPhotos() {
+        const c = active(); const host = document.getElementById('photos');
+        host.innerHTML = '';
+        for (const p of c.photos) {
+          let url = photoURLs.get(p.id);
+          if (!url) { const rec = await idb.get(p.id).catch(() => null); if (rec) { url = URL.createObjectURL(rec.blob); photoURLs.set(p.id, url); } }
+          const d = document.createElement('div'); d.className = 'photo';
+          d.innerHTML = `${url ? `<img src="${url}" alt="">` : '<div style="aspect-ratio:4/3;display:grid;place-items:center;color:var(--muted)">missing</div>'}
+            <input placeholder="${p.kind === 'receipt' ? 'Receipt: vendor, amount' : 'Caption (e.g. harness before unplugging)'}" value="${esc(p.caption)}">
+            <div class="photo-actions"><span>${p.kind === 'receipt' ? '🧾 ' : ''}${fmtDate(p.takenAt)}</span><button type="button" class="no-print">remove</button></div>`;
+          d.querySelector('input').addEventListener('input', (e) => { p.caption = e.target.value; save(); });
+          d.querySelector('button').addEventListener('click', async () => { await idb.del(p.id).catch(() => {}); c.photos.splice(c.photos.indexOf(p), 1); save(true); renderPhotos(); renderSummary(); });
+          host.appendChild(d);
+        }
+      }
+      const photoInput = document.getElementById('photoInput'); let photoKind = 'photo';
+      document.getElementById('addPhotoBtn').addEventListener('click', () => { photoKind = 'photo'; photoInput.click(); });
+      document.getElementById('addReceiptBtn').addEventListener('click', () => { photoKind = 'receipt'; photoInput.click(); });
+      photoInput.addEventListener('change', (e) => { if (e.target.files.length) { document.getElementById('photoHint').textContent = 'Saving…'; addPhotos([...e.target.files], photoKind); } photoInput.value = ''; });
+
+      // ---- Summary + completion ----------------------------------------------
+      function renderSummary() {
+        const c = active(); if (!c) return;
+        const spent = c.expenses.reduce((s, x) => s + num(x.amount), 0);
+        const chosen = c.options.find(o => o.id === c.chosenOptionID);
+        const filled = c.options.filter(o => avenueTotal(o) > 0).sort((a, b) => avenueTotal(a) - avenueTotal(b));
+        const est = chosen ? avenueTotal(chosen) : (filled[0] ? avenueTotal(filled[0]) : null);
+        const accepted = c.quotes.find(q => q.status === 'accepted');
+        const dealer = c.options.find(o => o.path === 'dealer'); const dealerTotal = dealer ? avenueTotal(dealer) : 0;
+        const highest = c.quotes.map(quoteTotal).filter(Boolean).sort((a, b) => b - a)[0] || dealerTotal;
+        const rows = [
+          ['Budget', (c.budget.min || c.budget.max) ? `${money(num(c.budget.min))} – ${money(num(c.budget.max))}` : '—'],
+          ['Chosen avenue', chosen ? (AVENUES.find(a => a.key === chosen.path)?.label) : (filled[0] ? 'not yet (cheapest: ' + AVENUES.find(a => a.key === filled[0].path)?.label + ')' : '—')],
+          ['Estimated', est ? money(est) + (chosen ? '' : ' (DIY)') : '—'],
+          ['Accepted quote', accepted ? money(quoteTotal(accepted)) : '—'],
+          ['Spent so far', money(spent)],
+          ['Vs. estimate', est ? (spent - est >= 0 ? '+' : '−') + money(Math.abs(spent - est)) : '—'],
+          ['Saved vs. highest quote', highest && spent ? money(Math.max(0, highest - spent)) : '—'],
+          ['Photos / receipts', `${c.photos.filter(p => p.kind !== 'receipt').length} / ${c.photos.filter(p => p.kind === 'receipt').length}`],
+        ];
+        document.getElementById('summary').innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
+        document.getElementById('printFooter').innerHTML = `<p class="hint" style="display:block">Owner records packet · ${esc(vehicleName(c))}${c.v.vin ? ' · VIN ' + esc(c.v.vin) : ''} · printed ${new Date().toLocaleString()} · G4R by 4DAT</p>`;
+      }
+      document.getElementById('completeBtn').addEventListener('click', () => {
+        const c = active();
+        if (!c.completedAt) c.completedAt = new Date().toISOString().slice(0, 10);
+        if (!c.completedMileage) c.completedMileage = c.v.mileage;
+        const spent = c.expenses.reduce((s, x) => s + num(x.amount), 0);
+        const chosen = c.options.find(o => o.id === c.chosenOptionID);
+        c.status = 'completed'; c.finalCost = spent;
+        c.serviceRecord = {
+          id: c.serviceRecord?.id || uid(), caseID: c.id, serviceDate: c.completedAt, mileage: num(c.completedMileage),
+          serviceDescription: c.serviceDescription || `${caseName(c)} (${chosen ? AVENUES.find(a => a.key === chosen.path)?.label : 'completed'})`,
+          providerName: c.completedBy || (c.quotes.find(q => q.status === 'accepted')?.shop ?? ''), cost: spent,
+          partsUsed: c.parts.filter(p => p.status === 'installed' || p.status === 'chosen').map(p => [p.brand, p.name].filter(Boolean).join(' ')),
+          attachmentIDs: c.photos.map(p => p.id),
+        };
+        logEvent(c, 'completed', `Completed. Total ${money(spent)}.`);
+        bindFields(); renderSteps(); renderTimeline(); renderSummary(); renderCaseList(); save(true);
+        saveStatus.textContent = 'Case completed and service record written.';
+      });
+
+      // ---- Timeline ---------------------------------------------------------
+      function renderTimeline() {
+        const c = active();
+        document.getElementById('timeline').innerHTML = [...c.events].reverse().map(e => `<li><time>${new Date(e.at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</time><span>${esc(e.text)}</span></li>`).join('');
+      }
+      document.getElementById('addEventBtn').addEventListener('click', () => { const t = document.getElementById('eventText'); if (!t.value.trim()) return; logEvent(active(), 'note', t.value.trim()); t.value = ''; renderTimeline(); save(true); });
+      document.getElementById('eventText').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('addEventBtn').click(); });
+
+      // ---- Case-level actions -------------------------------------------------
+      function renderCase() {
+        const c = active();
+        document.getElementById('caseView').hidden = !c; document.getElementById('emptyView').hidden = !!c;
+        document.getElementById('deleteCaseBtn').hidden = !c; document.getElementById('exportBtn').hidden = !c; document.getElementById('printBtn').hidden = !c;
+        renderCaseList();
+        if (!c) return;
+        renderCategory(); renderOptions(); renderSteps(); renderAllTables(); renderPhotos(); renderTimeline(); renderMessage(); renderSummary();
+      }
+      document.getElementById('newCaseBtn').addEventListener('click', () => { const c = newCase(); store.cases.unshift(c); store.activeID = c.id; save(true); renderCase(); document.getElementById('sec-case').scrollIntoView({ behavior: 'smooth' }); });
+      document.getElementById('deleteCaseBtn').addEventListener('click', async () => {
+        const c = active(); if (!c) return;
+        if (!confirm(`Delete “${caseName(c)}” and its ${c.photos.length} photo(s) from this browser? Export first if you want to keep it.`)) return;
+        for (const p of c.photos) await idb.del(p.id).catch(() => {});
+        store.cases = store.cases.filter(x => x.id !== c.id); store.activeID = store.cases[0]?.id || null; save(true); renderCase();
+      });
+      document.getElementById('printBtn').addEventListener('click', () => window.print());
+
+      // Export: case JSON + photos as base64 — the owner's copy, importable here or (later) in the app.
+      document.getElementById('exportBtn').addEventListener('click', async () => {
+        const c = active(); if (!c) return;
+        const attachments = [];
+        for (const p of c.photos) { const rec = await idb.get(p.id).catch(() => null); if (rec) attachments.push({ id: p.id, type: rec.type, data: await blobToB64(rec.blob) }); }
+        const out = { format: 'g4r.repairCase.transfer', version: 1, exportedAt: nowISO(), sourcePlatform: 'web', case: c, attachments };
+        const blob = new Blob([JSON.stringify(out)], { type: 'application/json' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = `${vehicleName(c).replace(/\s+/g, '-')}_${caseName(c).replace(/[^\w]+/g, '-')}_${c.createdAt.slice(0, 10)}.g4rcase.json`; a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        logEvent(c, 'export', 'Exported case file'); renderTimeline(); save(true);
+      });
+      const blobToB64 = (blob) => new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob); });
+      document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
+      document.getElementById('importFile').addEventListener('change', async (e) => {
+        const f = e.target.files[0]; if (!f) return;
+        try {
+          const data = JSON.parse(await f.text());
+          if (data.format !== 'g4r.repairCase.transfer' || !data.case) throw new Error('not a repair case file');
+          const c = data.case; if (store.cases.some(x => x.id === c.id)) c.id = uid();
+          for (const a of data.attachments || []) { const bin = atob(a.data); await idb.put({ id: a.id, type: a.type, blob: new Blob([Uint8Array.from(bin, ch => ch.charCodeAt(0))], { type: a.type }) }); }
+          logEvent(c, 'import', 'Imported case file ' + f.name);
+          store.cases.unshift(c); store.activeID = c.id; save(true); renderCase();
+        } catch (err) { saveStatus.textContent = 'Import failed: ' + err.message; saveStatus.className = 'status-line err'; }
+        e.target.value = '';
+      });
+      ['addPartBtn', 'addQuoteBtn', 'addExpenseBtn', 'addCustomBtn'].forEach(id => document.getElementById(id).addEventListener('click', () => {
+        const c = active();
+        if (id === 'addPartBtn') c.parts.push({ id: uid(), name: '', brand: '', tier: c.budget.tier === 'custom' ? 'mid' : c.budget.tier, price: '', fitment: 'unknown', fitmentSource: '', alsoNeeded: '', supplier: 'undecided', status: 'considering', sourceURL: '' });
+        if (id === 'addQuoteBtn') c.quotes.push({ id: uid(), shop: '', email: '', phone: '', parts: '', labor: '', fees: '', total: '', partSupplier: 'shop', warranty: '', leadDays: '', validUntil: '', status: 'todo' });
+        if (id === 'addExpenseBtn') c.expenses.push({ id: uid(), date: new Date().toISOString().slice(0, 10), kind: 'part', vendor: '', what: '', amount: '' });
+        if (id === 'addCustomBtn') c.custom.push({ id: uid(), key: '', value: '' });
+        renderAllTables(); save();
+        const tb = document.querySelector({ addPartBtn: '#partsTable', addQuoteBtn: '#quotesTable', addExpenseBtn: '#expensesTable', addCustomBtn: '#customTable' }[id] + ' tbody tr:last-child input'); tb && tb.focus();
+      }));
+
+      // ---- Boot ---------------------------------------------------------------
+      if (!store.activeID && store.cases[0]) store.activeID = store.cases[0].id;
+      renderCase();
+    </script>
+  </body>
+</html>
