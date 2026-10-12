@@ -139,6 +139,20 @@
         <!-- 1. Vehicle + case -->
         <section class="card" id="sec-case">
           <h2>Your vehicle &amp; the problem <small>case</small></h2>
+          <div class="no-print" id="garageImport" style="border:1px dashed var(--line);border-radius:8px;padding:.8rem 1rem;margin-bottom:1rem">
+            <strong>Use a vehicle from your G4R app</strong>
+            <p class="hint" style="margin:.2rem 0 .5rem">Sign in with the same Google or Apple account you use in the app and your synced vehicles appear here. No account? Export a <strong>.g4r</strong> garage file from the app (Settings › Transfer / Back Up Garage) and drop it below — it's read in your browser only.</p>
+            <div class="row" style="margin:0">
+              <div id="googleButton"></div>
+              <button id="appleButton" type="button" class="ghost" hidden> Sign in with Apple</button>
+              <button id="garageRefreshBtn" type="button" class="ghost" hidden>Refresh garage</button>
+              <button id="garageSignOutBtn" type="button" class="ghost small" hidden>Sign out</button>
+              <button id="g4rFileBtn" type="button" class="ghost">Open a .g4r file…</button>
+              <input type="file" id="g4rFile" accept=".g4r,.json,application/json" hidden>
+              <span id="garageStatus" class="status-line"></span>
+            </div>
+            <div id="vehiclePick" class="row" style="margin-top:.6rem"></div>
+          </div>
           <div class="grid4">
             <label>Year <input data-f="v.year" inputmode="numeric" placeholder="2018"></label>
             <label>Make <input data-f="v.make" placeholder="Honda"></label>
@@ -532,6 +546,109 @@
       ];
       const STEP_ORDER = ['diagnosing', 'planning', 'sourcing', 'scheduled', 'inProgress', 'completed'];
       const STEP_LABEL = { diagnosing: 'Diagnose', planning: 'Budget & avenue', sourcing: 'Parts & quotes', scheduled: 'Scheduled', inProgress: 'In progress', completed: 'Completed', abandoned: 'Abandoned' };
+
+      // ---- Garage import: G4R Account (op-log projection, same as account.html) or a .g4r file ----
+      const API_BASE = 'https://api.garage4reorder.com';
+      const GOOGLE_WEB_CLIENT_ID = '194255833350-7aake3sv6ojupvcrdonkg1p7opgamolj.apps.googleusercontent.com';
+      const APPLE_SERVICES_ID = 'com.ai4dat.garage4reorder.web';
+      const tokenKey = 'g4r.account.token';
+      const deviceID = localStorage.getItem('g4r.account.deviceID') || (() => { const id = uid(); localStorage.setItem('g4r.account.deviceID', id); return id; })();
+      const acctToken = () => sessionStorage.getItem(tokenKey);
+      const garageStatus = document.getElementById('garageStatus');
+      let garageVehicles = [];
+      async function api(method, path, body) {
+        const headers = {};
+        if (acctToken()) headers.authorization = 'Bearer ' + acctToken();
+        if (body) headers['content-type'] = 'application/json';
+        const r = await fetch(API_BASE + path, { method, headers, body: body && JSON.stringify(body) });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) { if (r.status === 401 && acctToken()) sessionStorage.removeItem(tokenKey); throw new Error(data.error || ('Request failed (' + r.status + ')')); }
+        return data;
+      }
+      function decodeB64(b64) { try { return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b64), ch => ch.charCodeAt(0)))); } catch { return null; } }
+      function projectEntries(entries) {
+        const byEntity = new Map();
+        for (const e of entries) { const l = byEntity.get(e.entityID) || []; l.push(e); byEntity.set(e.entityID, l); }
+        const winners = [];
+        for (const [, list] of byEntity) {
+          const ts = (e) => Date.parse(e.timestamp) || 0;
+          const dels = list.filter(e => e.operation === 'delete'), edits = list.filter(e => e.operation !== 'delete');
+          if (dels.length && Math.max(0, ...dels.map(ts)) >= Math.max(0, ...edits.map(ts))) continue;
+          const w = edits.sort((a, b) => ts(b) - ts(a))[0]; if (w && w.payload) winners.push(w);
+        }
+        return winners;
+      }
+      function vehiclesFromEntries(entries) {
+        return projectEntries(entries).filter(e => e.entityType === 'Vehicle').map(e => ({ id: e.entityID, ...(decodeB64(e.payload) || {}) }))
+          .filter(v => v.make || v.model).sort((a, b) => (b.year || 0) - (a.year || 0));
+      }
+      async function pullGarage() {
+        garageStatus.textContent = 'Loading your garage…'; garageStatus.className = 'status-line';
+        try {
+          let since = 0; const all = [];
+          for (;;) { const page = await api('GET', '/v1/changes?app=g4r&since=' + since); all.push(...page.entries); since = page.latest_seq; if (!page.has_more) break; }
+          garageVehicles = vehiclesFromEntries(all);
+          garageStatus.textContent = garageVehicles.length ? '' : 'No vehicles have synced to this account yet. In the G4R app: Settings › Account › Sync Now.';
+          renderVehiclePick('account');
+        } catch (err) { garageStatus.textContent = err.message; garageStatus.className = 'status-line err'; }
+        showAccountButtons();
+      }
+      function renderVehiclePick(source) {
+        const host = document.getElementById('vehiclePick');
+        host.innerHTML = garageVehicles.map((v, i) => `<button type="button" class="ghost" data-veh="${i}">${esc([v.year, v.make, v.model, v.trim].filter(Boolean).join(' '))}${v.mileage ? ` · ${Number(v.mileage).toLocaleString()} mi` : ''}</button>`).join('');
+        host.querySelectorAll('[data-veh]').forEach(b => b.addEventListener('click', () => useVehicle(garageVehicles[+b.dataset.veh], source)));
+      }
+      function useVehicle(v, source) {
+        let c = active();
+        if (!c) { c = newCase(); store.cases.unshift(c); store.activeID = c.id; }
+        c.v = { year: v.year ? String(v.year) : '', make: v.make || '', model: v.model || '', trim: v.trim || '', mileage: v.mileage ? String(v.mileage) : '', vin: v.vin || '', plate: v.licensePlate || '' };
+        c.vehicleID = v.id; if (v.engine) { if (!c.custom.some(f => f.key === 'Engine')) c.custom.push({ id: uid(), key: 'Engine', value: v.engine }); }
+        logEvent(c, 'vehicle', `Vehicle loaded from ${source === 'file' ? 'a .g4r file' : 'your G4R Account'}: ${[v.year, v.make, v.model].filter(Boolean).join(' ')}`);
+        save(true); renderCase(); garageStatus.textContent = 'Vehicle loaded.'; garageStatus.className = 'status-line';
+      }
+      function showAccountButtons() {
+        const on = !!acctToken();
+        document.getElementById('garageRefreshBtn').hidden = !on; document.getElementById('garageSignOutBtn').hidden = !on;
+        document.getElementById('googleButton').hidden = on; document.getElementById('appleButton').hidden = on || !APPLE_SERVICES_ID;
+      }
+      async function completeSignIn(provider, idToken) {
+        try {
+          const auth = await api('POST', '/v1/auth', { provider, id_token: idToken, device: { id: deviceID, name: 'Web browser', platform: 'web' } });
+          sessionStorage.setItem(tokenKey, auth.token);
+          if (auth.account_created) garageStatus.textContent = 'This sign-in made a brand-new, empty account. In the app, sign in with this same method (or use a link code on the Account page) so your garage syncs here.';
+          await pullGarage();
+        } catch (err) { garageStatus.textContent = err.message; garageStatus.className = 'status-line err'; }
+      }
+      function setupProviders() {
+        if (GOOGLE_WEB_CLIENT_ID) {
+          const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client';
+          sc.onload = () => { google.accounts.id.initialize({ client_id: GOOGLE_WEB_CLIENT_ID, callback: (r) => completeSignIn('google', r.credential) }); google.accounts.id.renderButton(document.getElementById('googleButton'), { theme: 'outline', size: 'medium' }); };
+          document.head.appendChild(sc);
+        }
+        if (APPLE_SERVICES_ID) {
+          const sc = document.createElement('script'); sc.src = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
+          sc.onload = () => {
+            AppleID.auth.init({ clientId: APPLE_SERVICES_ID, scope: '', redirectURI: location.origin + '/account', usePopup: true });
+            const btn = document.getElementById('appleButton'); btn.hidden = !!acctToken();
+            btn.addEventListener('click', async () => { try { const r = await AppleID.auth.signIn(); completeSignIn('apple', r.authorization.id_token); } catch (e) { /* cancelled */ } });
+          };
+          document.head.appendChild(sc);
+        }
+      }
+      document.getElementById('garageRefreshBtn').addEventListener('click', pullGarage);
+      document.getElementById('garageSignOutBtn').addEventListener('click', () => { sessionStorage.removeItem(tokenKey); garageVehicles = []; renderVehiclePick(); showAccountButtons(); });
+      document.getElementById('g4rFileBtn').addEventListener('click', () => document.getElementById('g4rFile').click());
+      document.getElementById('g4rFile').addEventListener('change', async (e) => {
+        const f = e.target.files[0]; if (!f) return;
+        try {
+          const file = JSON.parse(await f.text());
+          if (file.format !== 'g4r.garage.transfer') throw new Error("That doesn't look like a G4R garage file.");
+          garageVehicles = vehiclesFromEntries(file.entries || []);
+          garageStatus.textContent = garageVehicles.length ? `Found ${garageVehicles.length} vehicle(s) in ${f.name} — pick one:` : 'No vehicles in that file.'; garageStatus.className = 'status-line';
+          renderVehiclePick('file');
+        } catch (err) { garageStatus.textContent = err.message; garageStatus.className = 'status-line err'; }
+        e.target.value = '';
+      });
 
       // ---- Persistence --------------------------------------------------
       function loadAll() { try { return JSON.parse(localStorage.getItem(LS_KEY)) || { cases: [], activeID: null }; } catch { return { cases: [], activeID: null }; } }
@@ -944,6 +1061,8 @@
       // ---- Boot ---------------------------------------------------------------
       if (!store.activeID && store.cases[0]) store.activeID = store.cases[0].id;
       renderCase();
+      setupProviders(); showAccountButtons();
+      if (acctToken()) pullGarage();
     </script>
   </body>
 </html>
